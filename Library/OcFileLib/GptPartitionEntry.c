@@ -116,7 +116,7 @@ InternalReadDisk (
     Status = DiskIo->ReadDisk (
                        DiskIo,
                        BlockIo->Media->MediaId,
-                       MultU64x32 (LBA, BlockIo2->Media->BlockSize),
+                       MultU64x32 (LBA, BlockIo->Media->BlockSize),
                        BufferSize,
                        Buffer
                        );
@@ -131,7 +131,7 @@ InternalReadDisk (
     Status = DiskIo2->ReadDiskEx (
                         DiskIo2,
                         BlockIo->Media->MediaId,
-                        MultU64x32 (LBA, BlockIo2->Media->BlockSize),
+                        MultU64x32 (LBA, BlockIo->Media->BlockSize),
                         NULL,
                         BufferSize,
                         Buffer
