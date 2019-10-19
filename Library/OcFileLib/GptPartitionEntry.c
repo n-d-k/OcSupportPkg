@@ -76,36 +76,96 @@ InternalDebugPrintPartitionEntry (
 STATIC
 EFI_STATUS
 InternalReadDisk (
-  IN  EFI_DISK_IO_PROTOCOL   *DiskIo,
-  IN  EFI_DISK_IO2_PROTOCOL  *DiskIo2,
-  IN  UINT32                 MediaId,
-  IN  UINT64                 Offset,
-  IN  UINTN                  BufferSize,
-  OUT VOID                   *Buffer
+  IN  EFI_DISK_IO_PROTOCOL    *DiskIo,
+  IN  EFI_DISK_IO2_PROTOCOL   *DiskIo2,
+  IN  EFI_BLOCK_IO_PROTOCOL   *BlockIo,
+  IN  EFI_BLOCK_IO2_PROTOCOL  *BlockIo2,
+  IN  EFI_LBA                 LBA,
+  IN  UINTN                   BufferSize,
+  OUT VOID                    *Buffer
   )
 {
-  ASSERT (DiskIo2 != NULL || DiskIo != NULL);
+  EFI_STATUS Status;
 
-  if (DiskIo2 != NULL) {
-    return DiskIo2->ReadDiskEx (
-                      DiskIo2,
-                      MediaId,
-                      Offset,
-                      NULL,
-                      BufferSize,
-                      Buffer
-                      );
+  ASSERT (DiskIo2 != NULL || DiskIo != NULL);
+  ASSERT (BlockIo2 != NULL || BlockIo != NULL);
+  ASSERT (Buffer != NULL);
+  //
+  // The Disk I/O stack of some vendor UEFI implementations is really buggy.
+  // Try multiple Block and Disk I/O protocol combinations till one succeeds.
+  // This prefers Disk I/O 2 over Disk I/O and prefers pairing Disk I/O 2 with
+  // Block I/O 2 and Disk I/O with Block I/O for inner consistency.
+  //
+  if (DiskIo2 != NULL && BlockIo2 != NULL) {
+    Status = DiskIo2->ReadDiskEx (
+                        DiskIo2,
+                        BlockIo2->Media->MediaId,
+                        MultU64x32 (LBA, BlockIo2->Media->BlockSize),
+                        NULL,
+                        BufferSize,
+                        Buffer
+                        );
+    if (!EFI_ERROR (Status)) {
+      return Status;
+    }
+
+    DEBUG ((DEBUG_INFO, "OCPI: Read DiskIo2/BlockIo2 %r\n", Status));
   }
 
-  return DiskIo->ReadDisk (DiskIo, MediaId, Offset, BufferSize, Buffer);
+  if (DiskIo != NULL && BlockIo != NULL) {
+    Status = DiskIo->ReadDisk (
+                       DiskIo,
+                       BlockIo->Media->MediaId,
+                       MultU64x32 (LBA, BlockIo2->Media->BlockSize),
+                       BufferSize,
+                       Buffer
+                       );
+    if (!EFI_ERROR (Status)) {
+      return Status;
+    }
+
+    DEBUG ((DEBUG_INFO, "OCPI: Read DiskIo/BlockIo %r\n", Status));
+  }
+
+  if (DiskIo2 != NULL && BlockIo != NULL) {
+    Status = DiskIo2->ReadDiskEx (
+                        DiskIo2,
+                        BlockIo->Media->MediaId,
+                        MultU64x32 (LBA, BlockIo2->Media->BlockSize),
+                        NULL,
+                        BufferSize,
+                        Buffer
+                        );
+    if (!EFI_ERROR (Status)) {
+      return Status;
+    }
+
+    DEBUG ((DEBUG_INFO, "OCPI: Read DiskIo2/BlockIo %r\n", Status));
+  }
+
+  if (DiskIo != NULL && BlockIo2 != NULL) {
+    Status = DiskIo->ReadDisk (
+                       DiskIo,
+                       BlockIo2->Media->MediaId,
+                       MultU64x32 (LBA, BlockIo2->Media->BlockSize),
+                       BufferSize,
+                       Buffer
+                       );
+    if (!EFI_ERROR (Status)) {
+      return Status;
+    }
+    
+    DEBUG ((DEBUG_INFO, "OCPI: Read DiskIo/BlockIo2 %r\n", Status));
+  }
+
+  return Status;
 }
 
 STATIC
 EFI_HANDLE
 InternalPartitionGetDiskHandle (
   IN  EFI_DEVICE_PATH_PROTOCOL  *HdDevicePath,
-  IN  UINTN                     HdNodeOffset,
-  OUT BOOLEAN                   *HasBlockIo2
+  IN  UINTN                     HdNodeOffset
   )
 {
   EFI_HANDLE               DiskHandle;
@@ -117,7 +177,6 @@ InternalPartitionGetDiskHandle (
 
   ASSERT (HdDevicePath != NULL);
   ASSERT (HdNodeOffset < GetDevicePathSize (HdDevicePath));
-  ASSERT (HasBlockIo2 != NULL);
 
   PrefixPath = DuplicateDevicePath (HdDevicePath);
   if (PrefixPath == NULL) {
@@ -137,7 +196,6 @@ InternalPartitionGetDiskHandle (
                   &TempPath,
                   &DiskHandle
                   );
-  *HasBlockIo2 = !EFI_ERROR (Status);
 
   if (EFI_ERROR (Status)) {
     TempPath = PrefixPath;
@@ -175,7 +233,6 @@ OcPartitionGetDiskHandle (
   )
 {
   CONST HARDDRIVE_DEVICE_PATH *HdNode;
-  BOOLEAN                     Dummy;
 
   ASSERT (HdDevicePath != NULL);
 
@@ -192,8 +249,7 @@ OcPartitionGetDiskHandle (
 
   return InternalPartitionGetDiskHandle (
            HdDevicePath,
-           (UINTN)HdNode - (UINTN)HdDevicePath,
-           &Dummy
+           (UINTN)HdNode - (UINTN)HdDevicePath
            );
 }
 
@@ -318,8 +374,7 @@ OcDiskFindSystemPartitionPath (
 STATIC
 CONST INTERNAL_PARTITION_ENTRIES *
 InternalGetDiskPartitions (
-  IN EFI_HANDLE  DiskHandle,
-  IN BOOLEAN     HasBlockIo2
+  IN EFI_HANDLE  DiskHandle
   )
 {
   INTERNAL_PARTITION_ENTRIES *PartEntries;
@@ -331,8 +386,6 @@ InternalGetDiskPartitions (
   EFI_BLOCK_IO2_PROTOCOL     *BlockIo2;
   EFI_DISK_IO_PROTOCOL       *DiskIo;
   EFI_DISK_IO2_PROTOCOL      *DiskIo2;
-  UINT32                     MediaId;
-  UINT32                     BlockSize;
 
   EFI_LBA                    PartEntryLBA;
   UINT32                     NumPartitions;
@@ -355,53 +408,48 @@ InternalGetDiskPartitions (
     return PartEntries;
   }
 
-  if (HasBlockIo2) {
-    Status = gBS->HandleProtocol (
-                    DiskHandle,
-                    &gEfiBlockIo2ProtocolGuid,
-                    (VOID **)&BlockIo2
-                    );
-  } else {
-    Status = gBS->HandleProtocol (
-                    DiskHandle,
-                    &gEfiBlockIoProtocolGuid,
-                    (VOID **)&BlockIo
-                    );
-  }
-  if (EFI_ERROR (Status)) {
+  BlockIo2 = NULL;
+  BlockIo  = NULL;
+
+  gBS->HandleProtocol (
+         DiskHandle,
+         &gEfiBlockIo2ProtocolGuid,
+         (VOID **)&BlockIo2
+         );
+  gBS->HandleProtocol (
+         DiskHandle,
+         &gEfiBlockIoProtocolGuid,
+         (VOID **)&BlockIo
+         );
+  if (BlockIo2 == NULL && BlockIo == NULL) {
     DEBUG ((
       DEBUG_INFO,
-      "OCPI: Block I/O protocol is not present %r(%d)\n",
-      Status,
-      HasBlockIo2
+      "OCPI: Block I/O protocol is not present\n"
       ));
     return NULL;
   }
   //
   // Retrieve the Disk I/O protocol.
   //
-  DiskIo = NULL;
+  DiskIo2 = NULL;
+  DiskIo  = NULL;
 
-  Status = gBS->HandleProtocol (
-                  DiskHandle,
-                  &gEfiDiskIo2ProtocolGuid,
-                  (VOID **)&DiskIo2
-                  );
-  if (EFI_ERROR (Status)) {
-    DiskIo2 = NULL;
+  gBS->HandleProtocol (
+         DiskHandle,
+         &gEfiDiskIo2ProtocolGuid,
+         (VOID **)&DiskIo2
+         );
 
-    Status = gBS->HandleProtocol (
-                    DiskHandle,
-                    &gEfiDiskIoProtocolGuid,
-                    (VOID **)&DiskIo
-                    );
-  }
-  if (EFI_ERROR (Status)) {
+  gBS->HandleProtocol (
+         DiskHandle,
+         &gEfiDiskIoProtocolGuid,
+         (VOID **)&DiskIo
+         );
+
+  if (DiskIo2 == NULL && DiskIo == NULL) {
     DEBUG ((
       DEBUG_INFO,
-      "OCPI: Disk I/O protocol is not present %r(%d)\n",
-      Status,
-      HasBlockIo2
+      "OCPI: Disk I/O protocol is not present\n"
       ));
     return NULL;
   }
@@ -414,19 +462,12 @@ InternalGetDiskPartitions (
     return NULL;
   }
 
-  if (HasBlockIo2) {
-    BlockSize = BlockIo2->Media->BlockSize;
-    MediaId   = BlockIo2->Media->MediaId;
-  } else {
-    BlockSize = BlockIo->Media->BlockSize;
-    MediaId   = BlockIo->Media->MediaId;
-  }
-
   Status = InternalReadDisk (
              DiskIo,
              DiskIo2,
-             MediaId,
-             (PRIMARY_PART_HEADER_LBA * BlockSize),
+             BlockIo,
+             BlockIo2,
+             PRIMARY_PART_HEADER_LBA,
              sizeof (*GptHeader),
              GptHeader
              );
@@ -481,8 +522,9 @@ InternalGetDiskPartitions (
   Status = InternalReadDisk (
              DiskIo,
              DiskIo2,
-             MediaId,
-             MultU64x32 (PartEntryLBA, BlockSize),
+             BlockIo,
+             BlockIo2,
+             PartEntryLBA,
              PartEntriesSize,
              PartEntries->FirstEntry
              );
@@ -530,7 +572,6 @@ OcGetGptPartitionEntry (
   EFI_DEVICE_PATH_PROTOCOL         *FsDevicePath;
   CONST HARDDRIVE_DEVICE_PATH      *HdNode;
   EFI_HANDLE                       DiskHandle;
-  BOOLEAN                          HasBlockIo2;
   UINTN                            Offset;
 
   ASSERT (FsHandle != NULL);
@@ -567,8 +608,7 @@ OcGetGptPartitionEntry (
 
   DiskHandle = InternalPartitionGetDiskHandle (
                  FsDevicePath,
-                 (UINTN)HdNode - (UINTN)FsDevicePath,
-                 &HasBlockIo2
+                 (UINTN)HdNode - (UINTN)FsDevicePath
                  );
   if (DiskHandle == NULL) {
     DebugPrintDevicePath (
@@ -581,7 +621,7 @@ OcGetGptPartitionEntry (
   //
   // Get the disk's GPT partition entries.
   //
-  Partitions = InternalGetDiskPartitions (DiskHandle, HasBlockIo2);
+  Partitions = InternalGetDiskPartitions (DiskHandle);
   if (Partitions == NULL) {
     DEBUG ((DEBUG_INFO, "OCPI: Failed to retrieve disk info\n"));
     return NULL;
