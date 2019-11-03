@@ -233,6 +233,9 @@ OcScanForBootEntries (
   INTERNAL_DEV_PATH_SCAN_INFO      *DevPathScanInfos;
   EFI_DEVICE_PATH_PROTOCOL         *DevicePathWalker;
   CONST FILEPATH_DEVICE_PATH       *FilePath;
+  UINTN                            Index1;
+  BOOLEAN                          SkipCustomEntry;
+  BOOLEAN                          BootWindowsFound;
 
   Result = OcOverflowMulUN (Context->AllCustomEntryCount, sizeof (OC_BOOT_ENTRY), &EntriesSize);
   if (Result) {
@@ -350,7 +353,7 @@ OcScanForBootEntries (
   }
 
   FreePool (DevPathScanInfos);
-
+  BootWindowsFound = FALSE;
   if (Describe) {
     DEBUG ((DEBUG_INFO, "Scanning got %u entries\n", (UINT32) EntryIndex));
 
@@ -359,7 +362,15 @@ OcScanForBootEntries (
       if (EFI_ERROR (Status)) {
         break;
       }
-
+      //
+      // Look for first Windows boot entry only if Windows boot was called via Hotkey W
+      //
+      if (Context->PickerCommand == OcPickerBootWindows && !BootWindowsFound) {
+        if (Entries[Index].Type == OcBootWindows) {
+          BootWindowsFound = TRUE;
+        }
+      }
+      
       DEBUG_CODE_BEGIN ();
       DEBUG ((
         DEBUG_INFO,
@@ -390,64 +401,101 @@ OcScanForBootEntries (
       return Status;
     }
   }
+  //
+  // Skip adding custom entries if Window boot hotkey W was called, and Windows boot entry was already found.
+  //
+  if (!BootWindowsFound) {
+    for (Index = 0; Index < Context->AllCustomEntryCount; ++Index) {
+      Entries[EntryIndex].Name = AsciiStrCopyToUnicode (Context->CustomEntries[Index].Name, 0);
+      PathName                 = AsciiStrCopyToUnicode (Context->CustomEntries[Index].Path, 0);
+      if (Entries[EntryIndex].Name == NULL || PathName == NULL) {
+        OcFreeBootEntries (Entries, EntryIndex + 1);
+        return EFI_OUT_OF_RESOURCES;
+      }
 
-  for (Index = 0; Index < Context->AllCustomEntryCount; ++Index) {
-    Entries[EntryIndex].Name = AsciiStrCopyToUnicode (Context->CustomEntries[Index].Name, 0);
-    PathName                 = AsciiStrCopyToUnicode (Context->CustomEntries[Index].Path, 0);
-    if (Entries[EntryIndex].Name == NULL || PathName == NULL) {
-      OcFreeBootEntries (Entries, EntryIndex + 1);
-      return EFI_OUT_OF_RESOURCES;
+      Entries[EntryIndex].Type = OcBootCustom;
+
+      if (Index < Context->AbsoluteEntryCount) {
+        SkipCustomEntry = FALSE;
+        for (Index1 = 0; Index1 < EntryIndex; ++Index1) {
+          if (Entries[Index1].Type == OcBootCustom) {
+            continue;
+          }
+          DevicePathText = ConvertDevicePathToText (Entries[Index1].DevicePath, FALSE, FALSE);
+          if (!StrCmp (DevicePathText, PathName)) {
+            FreePool (Entries[Index1].Name);
+            Entries[Index1].Name = AsciiStrCopyToUnicode (Context->CustomEntries[Index].Name, 0);
+            Entries[Index1].Type = OcBootCustom;
+            FreePool (Entries[EntryIndex].Name);
+            FreePool (PathName);
+            FreePool (DevicePathText);
+            SkipCustomEntry = TRUE;
+            break;
+          }
+          FreePool (DevicePathText);
+        }
+          
+        if (SkipCustomEntry) {
+          continue;
+        }
+        //
+        // Check for possible Windows entry in custom entries if not yet found with auto scan when Windows boot
+        // was called with hotkey W, Will skip the rest if find one here.
+        //
+        if (Context->PickerCommand == OcPickerBootWindows) {
+          if (StrStr(PathName, L"\\EFI\\Microsoft\\Boot") != NULL) {
+            Entries[EntryIndex].Type = OcBootWindows;
+            Index = Context->AllCustomEntryCount;
+          }
+        }
+          
+        Entries[EntryIndex].DevicePath = ConvertTextToDevicePath (PathName);
+        FreePool (PathName);
+        if (Entries[EntryIndex].DevicePath == NULL) {
+          FreePool (Entries[EntryIndex].Name);
+          continue;
+        }
+
+        FilePath = (FILEPATH_DEVICE_PATH *)(
+                     FindDevicePathNodeWithType (
+                       Entries[EntryIndex].DevicePath,
+                       MEDIA_DEVICE_PATH,
+                       MEDIA_FILEPATH_DP
+                       )
+                     );
+        if (FilePath == NULL) {
+          FreePool (Entries[EntryIndex].Name);
+          FreePool (Entries[EntryIndex].DevicePath);
+          continue;
+        }
+
+        Entries[EntryIndex].PathName = AllocateCopyPool (
+                                         OcFileDevicePathNameSize (FilePath),
+                                         FilePath->PathName
+                                         );
+        if (Entries[EntryIndex].PathName == NULL) {
+          FreePool (Entries[EntryIndex].Name);
+          FreePool (Entries[EntryIndex].DevicePath);
+          continue;
+        }
+      } else {
+        UnicodeUefiSlashes (PathName);
+        Entries[EntryIndex].PathName = PathName;
+      }
+
+      Entries[EntryIndex].LoadOptionsSize = (UINT32) AsciiStrLen (Context->CustomEntries[Index].Arguments);
+      if (Entries[EntryIndex].LoadOptionsSize > 0) {
+        Entries[EntryIndex].LoadOptions = AllocateCopyPool (
+          Entries[EntryIndex].LoadOptionsSize + 1,
+          Context->CustomEntries[Index].Arguments
+          );
+        if (Entries[EntryIndex].LoadOptions == NULL) {
+          Entries[EntryIndex].LoadOptionsSize = 0;
+        }
+      }
+
+      ++EntryIndex;
     }
-
-    Entries[EntryIndex].Type = OcBootCustom;
-
-    if (Index < Context->AbsoluteEntryCount) {
-      Entries[EntryIndex].DevicePath = ConvertTextToDevicePath (PathName);
-      FreePool (PathName);
-      if (Entries[EntryIndex].DevicePath == NULL) {
-        FreePool (Entries[EntryIndex].Name);
-        continue;
-      }
-
-      FilePath = (FILEPATH_DEVICE_PATH *)(
-                   FindDevicePathNodeWithType (
-                     Entries[EntryIndex].DevicePath,
-                     MEDIA_DEVICE_PATH,
-                     MEDIA_FILEPATH_DP
-                     )
-                   );
-      if (FilePath == NULL) {
-        FreePool (Entries[EntryIndex].Name);
-        FreePool (Entries[EntryIndex].DevicePath);
-        continue;
-      }
-
-      Entries[EntryIndex].PathName = AllocateCopyPool (
-                                       OcFileDevicePathNameSize (FilePath),
-                                       FilePath->PathName
-                                       );
-      if (Entries[EntryIndex].PathName == NULL) {
-        FreePool (Entries[EntryIndex].Name);
-        FreePool (Entries[EntryIndex].DevicePath);
-        continue;
-      }
-    } else {
-      UnicodeUefiSlashes (PathName);
-      Entries[EntryIndex].PathName = PathName;
-    }
-
-    Entries[EntryIndex].LoadOptionsSize = (UINT32) AsciiStrLen (Context->CustomEntries[Index].Arguments);
-    if (Entries[EntryIndex].LoadOptionsSize > 0) {
-      Entries[EntryIndex].LoadOptions = AllocateCopyPool (
-        Entries[EntryIndex].LoadOptionsSize + 1,
-        Context->CustomEntries[Index].Arguments
-        );
-      if (Entries[EntryIndex].LoadOptions == NULL) {
-        Entries[EntryIndex].LoadOptionsSize = 0;
-      }
-    }
-
-    ++EntryIndex;
   }
 
   if (Context->ShowNvramReset) {
@@ -866,6 +914,7 @@ OcLoadPickerHotKeys (
   BOOLEAN                            HasKeyP;
   BOOLEAN                            HasKeyR;
   BOOLEAN                            HasKeyX;
+  BOOLEAN                            HasKeyW;
 
   Status = gBS->LocateProtocol (
     &gAppleKeyMapAggregatorProtocolGuid,
@@ -908,6 +957,7 @@ OcLoadPickerHotKeys (
   HasKeyP    = OcKeyMapHasKey (Keys, NumKeys, AppleHidUsbKbUsageKeyP);
   HasKeyR    = OcKeyMapHasKey (Keys, NumKeys, AppleHidUsbKbUsageKeyR);
   HasKeyX    = OcKeyMapHasKey (Keys, NumKeys, AppleHidUsbKbUsageKeyX);
+  HasKeyW    = OcKeyMapHasKey (Keys, NumKeys, AppleHidUsbKbUsageKeyW);
 
   if (HasOption && HasCommand && HasKeyP && HasKeyR) {
     DEBUG ((DEBUG_INFO, "OCB: CMD+OPT+P+R causes NVRAM reset\n"));
@@ -918,6 +968,9 @@ OcLoadPickerHotKeys (
   } else if (HasKeyX) {
     DEBUG ((DEBUG_INFO, "OCB: X causes macOS to boot\n"));
     Context->PickerCommand = OcPickerBootApple;
+  } else if (HasKeyW) {
+    DEBUG ((DEBUG_INFO, "OCB: W causes Windows to boot\n"));
+    Context->PickerCommand = OcPickerBootWindows;
   } else if (HasOption) {
     DEBUG ((DEBUG_INFO, "OCB: OPT causes picker to show\n"));
     Context->PickerCommand = OcPickerShowPicker;
