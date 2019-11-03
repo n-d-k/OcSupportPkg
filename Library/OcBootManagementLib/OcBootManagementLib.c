@@ -1030,23 +1030,23 @@ OcWaitForAppleKeyIndex (
     return OC_INPUT_INVALID;
   }
 
-  NumKeys = ARRAY_SIZE (Keys);
-  Status = KeyMap->GetKeyStrokes (
-                     KeyMap,
-                     &Modifiers,
-                     &NumKeys,
-                     Keys
-                     );
-
-  if (EFI_ERROR (Status)) {
-    DEBUG ((DEBUG_ERROR, "OCB: GetKeyStrokes - %r\n", Status));
-    return OC_INPUT_INVALID;
-  }
-
   CurrTime  = GetTimeInNanoSecond (GetPerformanceCounter ());
   EndTime   = CurrTime + Timeout * 1000000000ULL;
 
   while (Timeout == 0 || CurrTime == 0 || CurrTime < EndTime) {
+    NumKeys = ARRAY_SIZE (Keys);
+    Status = KeyMap->GetKeyStrokes (
+                       KeyMap,
+                       &Modifiers,
+                       &NumKeys,
+                       Keys
+                       );
+
+    if (EFI_ERROR (Status)) {
+      DEBUG ((DEBUG_ERROR, "OCB: GetKeyStrokes - %r\n", Status));
+      return OC_INPUT_INVALID;
+    }
+
     CurrTime    = GetTimeInNanoSecond (GetPerformanceCounter ());
 
     HasCommand = (Modifiers & (APPLE_MODIFIER_LEFT_COMMAND | APPLE_MODIFIER_RIGHT_COMMAND)) != 0;
@@ -1148,6 +1148,10 @@ OcWaitForAppleKeyIndex (
       continue;
     }
 
+    if (OcKeyMapHasKey (Keys, NumKeys, AppleHidUsbKbUsageKeyEscape)
+     || OcKeyMapHasKey (Keys, NumKeys, AppleHidUsbKbUsageKeyZero)) {
+      return OC_INPUT_ABORTED;
+    }
     //
     // Check exact match on index strokes.
     //
