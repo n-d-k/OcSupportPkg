@@ -127,6 +127,12 @@ InternalAllocateRemainingSize (
   UINT64                 UsedSize;
   UINTN                  FinalUsedSize;
 
+  //
+  // Require page aligned base and top addresses.
+  //
+  ASSERT (BaseAddress == EFI_PAGES_TO_SIZE (EFI_SIZE_TO_PAGES (BaseAddress)));
+  ASSERT (TopAddress  == EFI_PAGES_TO_SIZE (EFI_SIZE_TO_PAGES (TopAddress)));
+
   while (RemainingSize > 0 && (*ExtentTable == NULL
     || (*ExtentTable)->ExtentCount < ARRAY_SIZE ((*ExtentTable)->Extents))) {
 
@@ -138,6 +144,12 @@ InternalAllocateRemainingSize (
       (UINT8 *)EntryWalker < ((UINT8 *)MemoryMap + MemoryMapSize);
       EntryWalker = NEXT_MEMORY_DESCRIPTOR (EntryWalker, DescriptorSize)) {
 
+      //
+      // FIXME: This currently skips segments starting before BaseAddress but potentially lasting
+      // further: 0, PhysicalStart, BaseAddress, PhysicalEnd, infinity. This was done intentionally,
+      // to avoid splitting one entry into two, when TopAddress is before PhysicalEnd, but can still
+      // be improved.
+      //
       if (EntryWalker->Type != EfiConventionalMemory
         || EntryWalker->PhysicalStart < BaseAddress
         || EntryWalker->PhysicalStart >= TopAddress) {
@@ -146,6 +158,9 @@ InternalAllocateRemainingSize (
 
       UsedSize = EFI_PAGES_TO_SIZE (EntryWalker->NumberOfPages);
       if (EntryWalker->PhysicalStart + UsedSize > TopAddress) {
+        //
+        // Guaranteed to be page aligned as TopAddress is page aligned.
+        //
         UsedSize = TopAddress - EntryWalker->PhysicalStart;
       }
 
@@ -156,10 +171,19 @@ InternalAllocateRemainingSize (
     }
 
     if (BiggestEntry == NULL || BiggestSize == 0) {
-      return FALSE;
+      DEBUG ((
+        DEBUG_INFO,
+        "OCRAM: No entry for allocation %p / 0x%Lx bytes, rem 0x%Lx in 0x%Lx:0x%Lx\n",
+        BiggestEntry,
+        (UINT64) BiggestSize,
+        (UINT64) RemainingSize,
+        (UINT64) BaseAddress,
+        (UINT64) TopAddress
+        ));
+      return RemainingSize;
     }
 
-    FinalUsedSize = (UINTN)MIN (BiggestSize, RemainingSize);
+    FinalUsedSize = (UINTN) MIN (BiggestSize, RemainingSize);
 
     AllocatedArea = BiggestEntry->PhysicalStart;
     Status = gBS->AllocatePages (
@@ -170,7 +194,15 @@ InternalAllocateRemainingSize (
       );
 
     if (EFI_ERROR (Status)) {
-      return FALSE;
+      DEBUG ((
+        DEBUG_INFO,
+        "OCRAM: Broken allocator for 0x%Lx in 0x%Lx bytes, rem 0x%Lx - %r\n",
+        (UINT64) BiggestEntry->PhysicalStart,
+        (UINT64) FinalUsedSize,
+        (UINT64) RemainingSize,
+        Status
+        ));
+      return RemainingSize;
     }
 
     InternalAddAllocatedArea (ExtentTable, AllocatedArea, FinalUsedSize);
@@ -288,28 +320,11 @@ InternalAppleRamDiskAllocate (
 CONST APPLE_RAM_DISK_EXTENT_TABLE *
 OcAppleRamDiskAllocate (
   IN UINTN            Size,
-  IN EFI_MEMORY_TYPE  MemoryType
+  IN EFI_MEMORY_TYPE  MemoryType,
+  IN BOOLEAN          AvoidHighMem
   )
 {
   CONST APPLE_RAM_DISK_EXTENT_TABLE  *ExtentTable;
-  UINTN                              AvoidHighMemSize;
-  EFI_STATUS                         Status;
-  BOOLEAN                            AvoidHighMem;
-
-  //
-  // Respect OpenCore recommendation of memory usage.
-  //
-  AvoidHighMemSize = sizeof (AvoidHighMem);
-  Status = gRT->GetVariable (
-    OC_AVOID_HIGH_ALLOC_VARIABLE_NAME,
-    &gOcVendorVariableGuid,
-    NULL,
-    &AvoidHighMemSize,
-    &AvoidHighMem
-    );
-  if (EFI_ERROR (Status)) {
-    AvoidHighMem = FALSE;
-  }
 
   if (!AvoidHighMem) {
     //
@@ -373,8 +388,10 @@ OcAppleRamDiskRead (
     ++Index, CurrentOffset += (UINTN)Extent->Length
     ) {
     Extent = &ExtentTable->Extents[Index];
+    ASSERT (Extent->Start <= MAX_UINTN);
+    ASSERT (Extent->Length <= MAX_UINTN);
 
-    if (Offset >= CurrentOffset) {
+    if (Offset >= CurrentOffset && (Offset - CurrentOffset) < Extent->Length) {
       LocalOffset = (Offset - CurrentOffset);
       LocalSize   = (UINTN)MIN ((Extent->Length - LocalOffset), Size);
       CopyMem (
@@ -432,7 +449,7 @@ OcAppleRamDiskWrite (
     ASSERT (Extent->Start <= MAX_UINTN);
     ASSERT (Extent->Length <= MAX_UINTN);
 
-    if (Offset >= CurrentOffset) {
+    if (Offset >= CurrentOffset && (Offset - CurrentOffset) < Extent->Length) {
       LocalOffset = (Offset - CurrentOffset);
       LocalSize   = (UINTN)MIN ((Extent->Length - LocalOffset), Size);
       CopyMem (
@@ -479,10 +496,11 @@ OcAppleRamDiskLoadFile (
     return FALSE;
   }
 
-  for (Index = 0; FileSize > 0 && Index < ExtentTable->ExtentCount; ++Index) {
-    RequestedSize = ReadSize = (UINTN)MIN (FileSize, ExtentTable->Extents[Index].Length);
-
+  for (Index = 0; Index < ExtentTable->ExtentCount; ++Index) {
     ASSERT (ExtentTable->Extents[Index].Start <= MAX_UINTN);
+    ASSERT (ExtentTable->Extents[Index].Length <= MAX_UINTN);
+
+    RequestedSize = ReadSize = (UINTN)MIN (FileSize, ExtentTable->Extents[Index].Length);
     Status = File->Read (
       File,
       &RequestedSize,
@@ -494,9 +512,12 @@ OcAppleRamDiskLoadFile (
     }
 
     FileSize -= RequestedSize;
+    if (FileSize == 0) {
+      return TRUE;
+    }
   }
 
-  return TRUE;
+  return FALSE;
 }
 
 VOID
