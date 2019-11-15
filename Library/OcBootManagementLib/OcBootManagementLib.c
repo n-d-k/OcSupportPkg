@@ -236,6 +236,7 @@ OcScanForBootEntries (
   UINTN                            Index1;
   BOOLEAN                          SkipCustomEntry;
   BOOLEAN                          BootWindowsFound;
+  BOOLEAN                          *Modified;
 
   Result = OcOverflowMulUN (Context->AllCustomEntryCount, sizeof (OC_BOOT_ENTRY), &EntriesSize);
   if (Result) {
@@ -405,11 +406,14 @@ OcScanForBootEntries (
   // Skip adding custom entries if Window boot hotkey W was called, and Windows boot entry was already found.
   //
   if (!BootWindowsFound) {
+    Modified = AllocateZeroPool (sizeof (BOOLEAN) * (EntryIndex + Context->AbsoluteEntryCount));
+    ASSERT (Modified != NULL);
     for (Index = 0; Index < Context->AllCustomEntryCount; ++Index) {
       Entries[EntryIndex].Name = AsciiStrCopyToUnicode (Context->CustomEntries[Index].Name, 0);
       PathName                 = AsciiStrCopyToUnicode (Context->CustomEntries[Index].Path, 0);
       if (Entries[EntryIndex].Name == NULL || PathName == NULL) {
         OcFreeBootEntries (Entries, EntryIndex + 1);
+        FreePool (Modified);
         return EFI_OUT_OF_RESOURCES;
       }
 
@@ -418,14 +422,14 @@ OcScanForBootEntries (
       if (Index < Context->AbsoluteEntryCount) {
         SkipCustomEntry = FALSE;
         for (Index1 = 0; Index1 < EntryIndex; ++Index1) {
-          if (Entries[Index1].Type == OcBootCustom) {
+          if (Entries[Index1].Type == OcBootCustom || Modified[Index1]) {
             continue;
           }
           DevicePathText = ConvertDevicePathToText (Entries[Index1].DevicePath, FALSE, FALSE);
           if (!StrCmp (DevicePathText, PathName)) {
             FreePool (Entries[Index1].Name);
             Entries[Index1].Name = AsciiStrCopyToUnicode (Context->CustomEntries[Index].Name, 0);
-            Entries[Index1].Type = OcBootCustom;
+            Modified[Index1] = TRUE;
             FreePool (Entries[EntryIndex].Name);
             FreePool (PathName);
             FreePool (DevicePathText);
@@ -496,6 +500,7 @@ OcScanForBootEntries (
 
       ++EntryIndex;
     }
+    FreePool (Modified);
   }
 
   if (Context->ShowNvramReset) {
