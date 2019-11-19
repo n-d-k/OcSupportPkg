@@ -442,15 +442,26 @@ OcScanForBootEntries (
         if (SkipCustomEntry) {
           continue;
         }
+        
+        // Properly re-assign the boot type for custom entries according the pathname instead of using OcBootCustom.
+
+        if (StrStr(PathName, L"\\EFI\\Microsoft\\Boot") != NULL) {
+          Entries[EntryIndex].Type = OcBootWindows;
+        } else if (StrStr(PathName, L"\\System\\Library\\CoreServices\\boot.efi") != NULL) {
+          Entries[EntryIndex].Type = OcBootApple;
+        } else {
+        //
+        // Additional Boot types may be populated here in the future.
+        //
+        }
+        
         //
         // Check for possible Windows entry in custom entries if not yet found with auto scan when Windows boot
         // was called with hotkey W, Will skip the rest if find one here.
         //
-        if (Context->PickerCommand == OcPickerBootWindows) {
-          if (StrStr(PathName, L"\\EFI\\Microsoft\\Boot") != NULL) {
-            Entries[EntryIndex].Type = OcBootWindows;
+        
+        if (Context->PickerCommand == OcPickerBootWindows && Entries[EntryIndex].Type == OcBootWindows) {
             Index = Context->AllCustomEntryCount;
-          }
         }
           
         Entries[EntryIndex].DevicePath = ConvertTextToDevicePath (PathName);
