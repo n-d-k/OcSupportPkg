@@ -716,9 +716,13 @@ OcGetDefaultBootEntry (
   IN     UINTN              NumBootEntries
   )
 {
-  UINT32          BootEntryIndex;
-  OC_BOOT_ENTRY   *BootEntry;
-  UINTN           Index;
+  EFI_STATUS                Status;
+  UINT32                    BootEntryIndex;
+  OC_BOOT_ENTRY             *BootEntry;
+  UINTN                     Index;
+  EFI_DEVICE_PATH_PROTOCOL  *UefiDevicePath;
+  UINTN                     UefiDevicePathSize;
+  CHAR16                    *DevicePathText;
 
   BootEntry = InternalGetDefaultBootEntry (
     BootEntries,
@@ -741,7 +745,7 @@ OcGetDefaultBootEntry (
         if (BootEntries[Index].Type == OcBootApple) {
           BootEntryIndex = (UINT32) Index;
           DEBUG ((DEBUG_INFO, "OCB: Override default to Apple %u\n", BootEntryIndex));
-          break;
+          return BootEntryIndex;
         }
       }
     }
@@ -751,12 +755,13 @@ OcGetDefaultBootEntry (
         && BootEntries[BootEntryIndex + 1].Type == OcBootAppleRecovery) {
         BootEntryIndex = BootEntryIndex + 1;
         DEBUG ((DEBUG_INFO, "OCB: Override default to Apple Recovery %u, next\n", BootEntryIndex));
+        return BootEntryIndex;
       } else {
         for (Index = 0; Index < NumBootEntries; ++Index) {
           if (BootEntries[Index].Type == OcBootAppleRecovery) {
             BootEntryIndex = (UINT32) Index;
             DEBUG ((DEBUG_INFO, "OCB: Override default option to Apple Recovery %u\n", BootEntryIndex));
-            break;
+            return BootEntryIndex;
           }
         }
       }
@@ -767,10 +772,42 @@ OcGetDefaultBootEntry (
         if (BootEntries[Index].Type == OcBootWindows) {
           BootEntryIndex = (UINT32) Index;
           DEBUG ((DEBUG_INFO, "OCB: Override default option to Windows %u\n", BootEntryIndex));
+          return BootEntryIndex;
+        }
+      }
+    }
+  }
+  //
+  // Checking for Nvram efi-boot-device-data for last booted entry, and set default boot entry to the same one if possible. strictly for Osx and Windows for now.
+  //
+  Status = GetVariable2 (
+             L"efi-boot-device-data",
+             &gAppleBootVariableGuid,
+             (VOID **)&UefiDevicePath,
+             &UefiDevicePathSize
+             );
+  if (!EFI_ERROR (Status) && IsDevicePathValid (UefiDevicePath, UefiDevicePathSize)) {
+    DevicePathText = ConvertDevicePathToText (UefiDevicePath, FALSE, FALSE);
+    if (DevicePathText != NULL) {
+      DEBUG ((DEBUG_INFO, "OCB: efi-boot-device-data = %s\n", DevicePathText));
+      FreePool (DevicePathText);
+    }
+    
+    for (Index = 0; Index < NumBootEntries; ++Index) {
+      if (BootEntries[Index].Type == OcBootWindows || BootEntries[Index].Type == OcBootApple) {
+        if (GetDevicePathSize (BootEntries[Index].DevicePath) == UefiDevicePathSize && CompareMem (BootEntries[Index].DevicePath, UefiDevicePath, UefiDevicePathSize) == 0) {
+          DEBUG ((DEBUG_INFO, "OCB: Found efi-boot-device-data (%r/%u)\n", (UINT32) UefiDevicePathSize, (UINT32) GetDevicePathSize (BootEntries[Index].DevicePath)));
+          if (BootEntries[Index].Type != BootEntries[(UINTN) BootEntryIndex].Type) {
+            BootEntryIndex = (UINT32) Index;
+          }
           break;
         }
       }
     }
+  }
+  
+  if (UefiDevicePath != NULL) {
+    FreePool (UefiDevicePath);
   }
   
   return BootEntryIndex;
@@ -864,6 +901,51 @@ InternalReportLoadOption (
     );
 }
 #endif
+//
+// This function will update the efi-boot-device-data with provied device path.
+//
+STATIC
+VOID
+InternalReportLastBootedEntry (
+  IN EFI_DEVICE_PATH_PROTOCOL  *DevicePath
+  )
+{
+  EFI_STATUS                Status;
+  EFI_DEVICE_PATH_PROTOCOL  *UefiDevicePath;
+  UINTN                     UefiDevicePathSize;
+  CHAR16                    *DevicePathText;
+
+  Status = GetVariable2 (
+    L"efi-boot-device-data",
+    &gAppleBootVariableGuid,
+    (VOID **)&UefiDevicePath,
+    &UefiDevicePathSize
+    );
+  if (!EFI_ERROR (Status) && IsDevicePathValid (UefiDevicePath, UefiDevicePathSize)) {
+    DevicePathText = ConvertDevicePathToText (UefiDevicePath, FALSE, FALSE);
+    if (DevicePathText != NULL) {
+      DEBUG ((DEBUG_INFO, "OCB: efi-boot-device-data = %s\n", DevicePathText));
+      FreePool (DevicePathText);
+    }
+  }
+  if (GetDevicePathSize (DevicePath) != UefiDevicePathSize || CompareMem (DevicePath, UefiDevicePath, UefiDevicePathSize) != 0) {
+    DEBUG ((DEBUG_INFO, "OCB: Overwriting efi-boot-device-data (%r/%u)\n", (UINT32) UefiDevicePathSize, (UINT32) GetDevicePathSize (DevicePath)));
+    gRT->SetVariable (
+      L"efi-boot-device-data",
+      &gAppleBootVariableGuid,
+      EFI_VARIABLE_BOOTSERVICE_ACCESS
+        | EFI_VARIABLE_RUNTIME_ACCESS
+        | EFI_VARIABLE_NON_VOLATILE,
+      GetDevicePathSize (DevicePath),
+      DevicePath
+      );
+  } else {
+    DEBUG ((DEBUG_INFO, "OCB: Accepting same efi-boot-device-data\n"));
+  }
+  if (UefiDevicePath != NULL) {
+    FreePool (UefiDevicePath);
+  }
+}
 
 EFI_STATUS
 InternalLoadBootEntry (
@@ -992,7 +1074,13 @@ InternalLoadBootEntry (
       Context->CustomBootGuid ? &gOcVendorVariableGuid : &gEfiGlobalVariableGuid
       );
 #endif
-
+    //
+    // Updating nvram efi-boot-device-data for Osx and Windows boot type.
+    //
+    if (BootEntry->Type == OcBootApple || BootEntry->Type == OcBootWindows) {
+      InternalReportLastBootedEntry (DevicePath);
+    }
+    
     OptionalStatus = gBS->HandleProtocol (
                             *EntryHandle,
                             &gEfiLoadedImageProtocolGuid,
