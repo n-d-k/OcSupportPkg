@@ -3,7 +3,8 @@ Additional features implemented by this fork
 
  - Hotkey W to boot directly to first available Windows boot entry from either auto scanner or custom entries. (Hold down W to boot Windows OS directly)
  - Avoid duplicated entry in boot menu, cusstom entry will not be added to boot menu if the same entry already found by auto scanner.
- - Ability to change entry name found by auto scanner by adding custom entry with the exact same device path. 
+ - Ability to change entry name found by auto scanner by adding custom entry with the exact same device path.
+ - Auto default boot to last booted macOs or Windows.
 
 OcSupportPkg
 ============

@@ -755,16 +755,15 @@ OcGetDefaultBootEntry (
         && BootEntries[BootEntryIndex + 1].Type == OcBootAppleRecovery) {
         BootEntryIndex = BootEntryIndex + 1;
         DEBUG ((DEBUG_INFO, "OCB: Override default to Apple Recovery %u, next\n", BootEntryIndex));
-        return BootEntryIndex;
       } else {
         for (Index = 0; Index < NumBootEntries; ++Index) {
           if (BootEntries[Index].Type == OcBootAppleRecovery) {
             BootEntryIndex = (UINT32) Index;
             DEBUG ((DEBUG_INFO, "OCB: Override default option to Apple Recovery %u\n", BootEntryIndex));
-            return BootEntryIndex;
           }
         }
       }
+      return BootEntryIndex;
     }
   } else if (Context->PickerCommand == OcPickerBootWindows) {
     if (BootEntries[BootEntryIndex].Type != OcBootWindows) {
@@ -902,7 +901,7 @@ InternalReportLoadOption (
 }
 #endif
 //
-// This function will update the efi-boot-device-data with provied device path.
+// This function will update the efi-boot-device-data with provided device path.
 //
 STATIC
 VOID
