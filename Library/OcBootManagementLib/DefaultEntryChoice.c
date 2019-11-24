@@ -901,7 +901,39 @@ InternalReportLoadOption (
 }
 #endif
 //
-// This function will update the efi-boot-device-data with provided device path.
+// Find partition UUID from DevicePath
+//
+EFI_GUID *
+FindGPTPartitionGuidInDevicePath (
+  IN EFI_DEVICE_PATH_PROTOCOL   *DevicePath
+  )
+{
+  HARDDRIVE_DEVICE_PATH         *HDDDevPath;
+  EFI_GUID                      *Guid;
+  
+  Guid = NULL;
+  HDDDevPath = NULL;
+  
+  if (DevicePath == NULL) {
+    return NULL;
+  }
+  
+  while (!IsDevicePathEndType (DevicePath) &&
+         !(DevicePathType (DevicePath) == MEDIA_DEVICE_PATH && DevicePathSubType (DevicePath) == MEDIA_HARDDRIVE_DP)) {
+    DevicePath = NextDevicePathNode(DevicePath);
+  }
+  
+  if (DevicePathType (DevicePath) == MEDIA_DEVICE_PATH && DevicePathSubType (DevicePath) == MEDIA_HARDDRIVE_DP) {
+    HDDDevPath = (HARDDRIVE_DEVICE_PATH*) DevicePath;
+    if (HDDDevPath->SignatureType == SIGNATURE_TYPE_GUID) {
+      Guid = (EFI_GUID*) HDDDevPath->Signature;
+    }
+  }
+  
+  return Guid;
+}
+//
+// Update the efi-boot-device-data with provided device path.
 //
 STATIC
 VOID
@@ -913,6 +945,12 @@ InternalReportLastBootedEntry (
   EFI_DEVICE_PATH_PROTOCOL  *UefiDevicePath;
   UINTN                     UefiDevicePathSize;
   CHAR16                    *DevicePathText;
+  CHAR8                     *Data;
+  CHAR8                     *XmlData;
+  UINTN                     XmlDataSize;
+  EFI_GUID                  *Guid;
+  EFI_DEVICE_PATH_PROTOCOL  *MediaFilePath;
+  EFI_HANDLE                DeviceHandle;
 
   Status = GetVariable2 (
     L"efi-boot-device-data",
@@ -938,9 +976,45 @@ InternalReportLastBootedEntry (
       GetDevicePathSize (DevicePath),
       DevicePath
       );
+    
+    Guid = FindGPTPartitionGuidInDevicePath (DevicePath);
+    if (Guid != NULL) {
+      MediaFilePath = DevicePath;
+      gBS->LocateDevicePath (
+        &gEfiDevicePathProtocolGuid,
+        &MediaFilePath,
+        &DeviceHandle
+        );
+      
+      XmlData = "<array><dict><key>IOMatch</key><dict><key>IOProviderClass</key><string>IOMedia</string><key>IOPropertyMatch</key><dict><key>UUID</key><string>%g</string></dict></dict><key>BLLastBSDName</key><string></string></dict><dict><key>IOEFIDevicePathType</key><string>MediaFilePath</string><key>Path</key><string>%s</string></dict></array>";
+      
+      XmlDataSize = AsciiStrLen (XmlData) + GetDevicePathSize (MediaFilePath) + sizeof (EFI_GUID);
+      Data = AllocatePool(XmlDataSize);
+      ASSERT (Data != NULL);
+      
+      DevicePathText = ConvertDevicePathToText (MediaFilePath, FALSE, FALSE);
+      if (DevicePathText != NULL) {
+        AsciiSPrint (Data, XmlDataSize, XmlData, Guid, DevicePathText);
+        FreePool (DevicePathText);
+      }
+      
+      XmlDataSize = AsciiStrLen (Data);
+      gRT->SetVariable (
+        L"efi-boot-device",
+        &gAppleBootVariableGuid,
+        EFI_VARIABLE_BOOTSERVICE_ACCESS
+          | EFI_VARIABLE_RUNTIME_ACCESS
+          | EFI_VARIABLE_NON_VOLATILE,
+        XmlDataSize,
+        Data
+        );
+      FreePool (Data);
+    }
+    
   } else {
     DEBUG ((DEBUG_INFO, "OCB: Accepting same efi-boot-device-data\n"));
   }
+  
   if (UefiDevicePath != NULL) {
     FreePool (UefiDevicePath);
   }
