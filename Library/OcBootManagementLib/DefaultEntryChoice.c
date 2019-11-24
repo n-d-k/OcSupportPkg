@@ -795,8 +795,8 @@ OcGetDefaultBootEntry (
     for (Index = 0; Index < NumBootEntries; ++Index) {
       if (BootEntries[Index].Type == OcBootWindows || BootEntries[Index].Type == OcBootApple) {
         if (GetDevicePathSize (BootEntries[Index].DevicePath) == UefiDevicePathSize && CompareMem (BootEntries[Index].DevicePath, UefiDevicePath, UefiDevicePathSize) == 0) {
-          DEBUG ((DEBUG_INFO, "OCB: Found efi-boot-device-data (%r/%u)\n", (UINT32) UefiDevicePathSize, (UINT32) GetDevicePathSize (BootEntries[Index].DevicePath)));
-          if (BootEntries[Index].Type != BootEntries[(UINTN) BootEntryIndex].Type) {
+          DEBUG ((DEBUG_INFO, "OCB: Found a match, boot entry (%u) with efi-boot-device-data (%r/%u)\n", (UINT32) Index, (UINT32) UefiDevicePathSize, (UINT32) GetDevicePathSize (BootEntries[Index].DevicePath)));
+          if (BootEntries[Index].Type != BootEntries[(UINTN) BootEntryIndex].Type || Index != (UINTN) BootEntryIndex) {
             BootEntryIndex = (UINT32) Index;
           }
           break;
