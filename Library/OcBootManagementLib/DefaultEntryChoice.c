@@ -811,95 +811,6 @@ OcGetDefaultBootEntry (
   
   return BootEntryIndex;
 }
-
-#if 0
-STATIC
-VOID
-InternalReportLoadOption (
-  IN EFI_DEVICE_PATH_PROTOCOL  *DevicePath,
-  IN EFI_GUID                  *BootGuid
-  )
-{
-  EFI_STATUS          Status;
-  UINTN               DevicePathSize;
-  UINTN               LoadOptionSize;
-  EFI_LOAD_OPTION     *LoadOption;
-  UINT16              LoadOptionNo;
-  EFI_LOAD_OPTION     *CurrLoadOption;
-  CONST CHAR16        *LoadOptionName;
-  UINTN               LoadOptionNameSize;
-  UINTN               CurrLoadOptionSize;
-
-  //
-  // Always report valid option in BootCurrent.
-  // Unless done there is no way for Windows to properly hibernate.
-  //
-
-  LoadOptionName     = L"OC Boot";
-  LoadOptionNameSize = L_STR_SIZE (L"OC Boot");
-  DevicePathSize     = GetDevicePathSize (DevicePath);
-  LoadOptionSize     = sizeof (EFI_LOAD_OPTION) + LoadOptionNameSize + DevicePathSize;
-
-  LoadOption = AllocatePool (LoadOptionSize);
-  if (LoadOption == NULL) {
-    DEBUG ((DEBUG_INFO, "OCB: Failed to allocate BootFFFF (%u)\n", (UINT32) LoadOptionSize));
-    return;
-  }
-
-  LoadOption->Attributes         = LOAD_OPTION_HIDDEN;
-  LoadOption->FilePathListLength = DevicePathSize;
-  CopyMem (LoadOption + 1, LoadOptionName, LoadOptionNameSize);
-  CopyMem ((UINT8 *) (LoadOption + 1) + LoadOptionNameSize, DevicePath, DevicePathSize);
-
-  CurrLoadOption = NULL;
-  CurrLoadOptionSize = 0;
-  Status = GetVariable2 (
-    L"BootFFFF",
-    BootGuid,
-    (VOID **) &CurrLoadOption,
-    &CurrLoadOptionSize
-    );
-  if (EFI_ERROR (Status)
-    || CurrLoadOptionSize != LoadOptionSize
-    || CompareMem (CurrLoadOption, LoadOption, LoadOptionSize) != 0) {
-
-    DEBUG ((
-      DEBUG_INFO,
-      "OCB: Overwriting BootFFFF (%r/%u)\n",
-      Status,
-      (UINT32) CurrLoadOptionSize,
-      (UINT32) LoadOptionSize
-      ));
-
-    gRT->SetVariable (
-      L"BootFFFF",
-      BootGuid,
-      EFI_VARIABLE_BOOTSERVICE_ACCESS
-        | EFI_VARIABLE_RUNTIME_ACCESS
-        | EFI_VARIABLE_NON_VOLATILE,
-      LoadOptionSize,
-      LoadOption
-      );
-  } else {
-    DEBUG ((DEBUG_INFO, "OCB: Accepting same BootFFFF\n"));
-  }
-
-  if (CurrLoadOption != NULL) {
-    FreePool (CurrLoadOption);
-  }
-  FreePool (LoadOption);
-
-  LoadOptionNo = 0xFFFF;
-  gRT->SetVariable (
-    L"BootCurrent",
-    BootGuid,
-    EFI_VARIABLE_BOOTSERVICE_ACCESS
-      | EFI_VARIABLE_RUNTIME_ACCESS,
-    sizeof (LoadOptionNo),
-    &LoadOptionNo
-    );
-}
-#endif
 //
 // Update the efi-boot-device-data with provided device path.
 //
@@ -1068,12 +979,6 @@ InternalLoadBootEntry (
   }
 
   if (!EFI_ERROR (Status)) {
-#if 0
-    InternalReportLoadOption (
-      DevicePath,
-      Context->CustomBootGuid ? &gOcVendorVariableGuid : &gEfiGlobalVariableGuid
-      );
-#endif
     //
     // Updating nvram efi-boot-device-data for Osx and Windows boot type.
     //
