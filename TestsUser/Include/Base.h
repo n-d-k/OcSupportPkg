@@ -37,6 +37,14 @@
 #define RSIZE_MAX (SIZE_MAX >> 1)
 #endif
 
+#ifdef MDE_CPU_EBC
+  #define STATIC_ASSERT(Expression, Message)
+#elif _MSC_EXTENSIONS
+  #define STATIC_ASSERT static_assert
+#else
+  #define STATIC_ASSERT _Static_assert
+#endif
+
 //
 // Types and limits
 //
@@ -496,7 +504,6 @@ typedef struct {
 
 #define SIGNATURE_16(A, B)        ((A) | ((B) << 8))
 #define SIGNATURE_32(A, B, C, D)  (SIGNATURE_16 (A, B) | (SIGNATURE_16 (C, D) << 16))
-#define DEBUG(X) do { ppprintf X ; } while (0)
 #define ARRAY_SIZE(x) (sizeof(x)/sizeof((x)[0]))
 #define EFI_ERROR(x) ((x) != 0)
 #define OFFSET_OF(Base, Type) offsetof(Base, Type)
@@ -544,13 +551,23 @@ STATIC inline EFI_STATUS FreePool(void *x) { free (x); return EFI_SUCCESS; }
 #define AsciiStrnCpyS(a, b, c, d) oc_strlcpy(a, c, b)
 #define AsciiStrDecimalToUint64(a) (strtoull)(a, NULL, 10)
 #define AsciiStrHexToUint64(a) (strtoull)(a, NULL, 16)
-#define ASSERT(x) assert(x)
-#define DebugCodeEnabled() true
-#define DebugAssertEnabled() true
+
 static inline void FreePages(void *p,UINTN s) {}
 #define UnicodeSPrint(...) assert(false)
 #define CompareGuid(a, b) ((memcmp)((a), (b), sizeof (EFI_GUID)) == 0)
 #define CopyGuid(a, b) (memcpy)((a), (b), sizeof (EFI_GUID))
+
+#ifndef NDEBUG
+  #define DebugCodeEnabled() true
+  #define DebugAssertEnabled() true
+  #define ASSERT(x) assert(x)
+  #define DEBUG(X) do { ppprintf X ; } while (0)
+#else
+  #define DebugCodeEnabled() false
+  #define DebugAssertEnabled() false
+  #define ASSERT(...)
+  #define DEBUG(...)
+#endif
 
 EFI_STATUS EfiGetSystemConfigurationTable (EFI_GUID *TableGuid, OUT VOID **Table);
 

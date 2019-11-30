@@ -581,31 +581,26 @@ GetApplePeImageSha256 (
 EFI_STATUS
 VerifyApplePeImageSignature (
   IN OUT VOID                                *PeImage,
-  IN OUT UINTN                               *ImageSize,
-  IN OUT APPLE_PE_COFF_LOADER_IMAGE_CONTEXT  *Context OPTIONAL
+  IN OUT UINTN                               *ImageSize
   )
 {
-  UINTN                    Index                       = 0;
-  APPLE_SIGNATURE_CONTEXT  *SignatureContext           = NULL;
-  OC_RSA_PUBLIC_KEY        *Pk                         = NULL;
+  UINTN                              Index             = 0;
+  APPLE_SIGNATURE_CONTEXT            *SignatureContext = NULL;
+  OC_RSA_PUBLIC_KEY                  *Pk               = NULL;
+  APPLE_PE_COFF_LOADER_IMAGE_CONTEXT *Context          = NULL;
 
-  //
-  // Build context if not present
-  //
+  Context = AllocateZeroPool (sizeof (APPLE_PE_COFF_LOADER_IMAGE_CONTEXT));
   if (Context == NULL) {
-    Context = AllocateZeroPool (sizeof (APPLE_PE_COFF_LOADER_IMAGE_CONTEXT));
-    if (Context == NULL) {
-      DEBUG ((DEBUG_WARN, "Pe context allocation failure\n"));
-      return EFI_OUT_OF_RESOURCES;
-    }
-    //
-    // Build PE context
-    //
-    if (EFI_ERROR (BuildPeContext (PeImage, *ImageSize, Context))) {
-      DEBUG ((DEBUG_WARN, "Malformed ApplePeImage\n"));
-      FreePool (Context);
-      return EFI_INVALID_PARAMETER;
-    }
+    DEBUG ((DEBUG_WARN, "Pe context allocation failure\n"));
+    return EFI_OUT_OF_RESOURCES;
+  }
+  //
+  // Build PE context
+  //
+  if (EFI_ERROR (BuildPeContext (PeImage, *ImageSize, Context))) {
+    DEBUG ((DEBUG_WARN, "Malformed ApplePeImage\n"));
+    FreePool (Context);
+    return EFI_INVALID_PARAMETER;
   }
 
   //
@@ -619,6 +614,7 @@ VerifyApplePeImageSignature (
   SignatureContext = AllocateZeroPool (sizeof (APPLE_SIGNATURE_CONTEXT));
   if (SignatureContext == NULL) {
     DEBUG ((DEBUG_WARN, "Signature context allocation failure\n"));
+    FreePool (Context);
     return EFI_OUT_OF_RESOURCES;
   }
 
