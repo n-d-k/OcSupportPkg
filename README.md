@@ -1,10 +1,14 @@
 Additional features implemented by this fork
 ============
 
- - Hotkey W to boot directly to first available Windows boot entry from either auto scanner or custom entries. (Hold down W to boot Windows OS directly)
- - Avoid duplicated entry in boot menu, cusstom entry will not be added to boot menu if the same entry already found by auto scanner.
- - Ability to change entry name found by auto scanner by adding custom entry with the exact same device path.
- - Auto default boot to last booted macOs or Windows.
+- Hotkey W to boot directly to first available Windows boot entry from either auto scanner or custom entries. (Hold down W to boot Windows OS directly).
+- Auto default boot to last booted macOs or Windows.
+- No verbose apfs.efi driver loading (if using apfs.efi instead of ApfsDriverLoader.efi).
+- Avoid duplicated entry in boot menu, cusstom entry will not be added to boot menu if the same entry already found by auto scanner.
+- Ability to change entry name found by auto scanner by adding custom entry with the exact same device path.
+- Compile with latest edk2.
+- NvmExpressDxe driver build script are also available for system without native nvme support. (Compatible with OC and Clover).
+- ACPI patches is now optional for non macOS with setting ACPI->Quirks->EnableForAll to yes (default is no).
 
 OcSupportPkg
 ============
