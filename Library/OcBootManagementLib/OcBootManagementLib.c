@@ -929,8 +929,8 @@ OcLoadPickerHotKeys (
   BOOLEAN                            HasOption;
   BOOLEAN                            HasKeyP;
   BOOLEAN                            HasKeyR;
-  BOOLEAN                            HasKeyX;
   BOOLEAN                            HasKeyW;
+  BOOLEAN                            HasKeyX;
 
   Status = gBS->LocateProtocol (
     &gAppleKeyMapAggregatorProtocolGuid,
@@ -972,8 +972,8 @@ OcLoadPickerHotKeys (
   HasEscape  = OcKeyMapHasKey (Keys, NumKeys, AppleHidUsbKbUsageKeyEscape);
   HasKeyP    = OcKeyMapHasKey (Keys, NumKeys, AppleHidUsbKbUsageKeyP);
   HasKeyR    = OcKeyMapHasKey (Keys, NumKeys, AppleHidUsbKbUsageKeyR);
-  HasKeyX    = OcKeyMapHasKey (Keys, NumKeys, AppleHidUsbKbUsageKeyX);
   HasKeyW    = OcKeyMapHasKey (Keys, NumKeys, AppleHidUsbKbUsageKeyW);
+  HasKeyX    = OcKeyMapHasKey (Keys, NumKeys, AppleHidUsbKbUsageKeyX);
 
   if (HasOption && HasCommand && HasKeyP && HasKeyR) {
     DEBUG ((DEBUG_INFO, "OCB: CMD+OPT+P+R causes NVRAM reset\n"));
@@ -981,12 +981,12 @@ OcLoadPickerHotKeys (
   } else if (HasCommand && HasKeyR) {
     DEBUG ((DEBUG_INFO, "OCB: CMD+R causes recovery to boot\n"));
     Context->PickerCommand = OcPickerBootAppleRecovery;
-  } else if (HasKeyX) {
-    DEBUG ((DEBUG_INFO, "OCB: X causes macOS to boot\n"));
-    Context->PickerCommand = OcPickerBootApple;
   } else if (HasKeyW) {
     DEBUG ((DEBUG_INFO, "OCB: W causes Windows to boot\n"));
     Context->PickerCommand = OcPickerBootWindows;
+  } else if (HasKeyX) {
+    DEBUG ((DEBUG_INFO, "OCB: X causes macOS to boot\n"));
+    Context->PickerCommand = OcPickerBootApple;
   } else if (HasOption) {
     DEBUG ((DEBUG_INFO, "OCB: OPT causes picker to show\n"));
     Context->PickerCommand = OcPickerShowPicker;
