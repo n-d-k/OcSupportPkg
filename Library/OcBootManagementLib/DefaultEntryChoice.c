@@ -745,10 +745,11 @@ OcGetDefaultBootEntry (
         if (BootEntries[Index].Type == OcBootApple) {
           BootEntryIndex = (UINT32) Index;
           DEBUG ((DEBUG_INFO, "OCB: Override default to Apple %u\n", BootEntryIndex));
-          return BootEntryIndex;
+          break;
         }
       }
     }
+    return BootEntryIndex;
   } else if (Context->PickerCommand == OcPickerBootAppleRecovery) {
     if (BootEntries[BootEntryIndex].Type != OcBootAppleRecovery) {
       if (BootEntryIndex + 1 < NumBootEntries
@@ -760,21 +761,23 @@ OcGetDefaultBootEntry (
           if (BootEntries[Index].Type == OcBootAppleRecovery) {
             BootEntryIndex = (UINT32) Index;
             DEBUG ((DEBUG_INFO, "OCB: Override default option to Apple Recovery %u\n", BootEntryIndex));
+            break;
           }
         }
       }
-      return BootEntryIndex;
     }
+    return BootEntryIndex;
   } else if (Context->PickerCommand == OcPickerBootWindows) {
     if (BootEntries[BootEntryIndex].Type != OcBootWindows) {
       for (Index = 0; Index < NumBootEntries; ++Index) {
         if (BootEntries[Index].Type == OcBootWindows) {
           BootEntryIndex = (UINT32) Index;
           DEBUG ((DEBUG_INFO, "OCB: Override default option to Windows %u\n", BootEntryIndex));
-          return BootEntryIndex;
+          break;
         }
       }
     }
+    return BootEntryIndex;
   }
   //
   // Checking for Nvram efi-boot-device-data for last booted entry, and set default boot entry to the same one if possible. strictly for Osx and Windows for now.
