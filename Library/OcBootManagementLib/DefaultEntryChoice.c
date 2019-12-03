@@ -723,6 +723,9 @@ OcGetDefaultBootEntry (
   EFI_DEVICE_PATH_PROTOCOL  *UefiDevicePath;
   UINTN                     UefiDevicePathSize;
   CHAR16                    *DevicePathText;
+  
+  UefiDevicePath = NULL;
+  DevicePathText = NULL;
 
   BootEntry = InternalGetDefaultBootEntry (
     BootEntries,
@@ -749,7 +752,6 @@ OcGetDefaultBootEntry (
         }
       }
     }
-    return BootEntryIndex;
   } else if (Context->PickerCommand == OcPickerBootAppleRecovery) {
     if (BootEntries[BootEntryIndex].Type != OcBootAppleRecovery) {
       if (BootEntryIndex + 1 < NumBootEntries
@@ -766,7 +768,6 @@ OcGetDefaultBootEntry (
         }
       }
     }
-    return BootEntryIndex;
   } else if (Context->PickerCommand == OcPickerBootWindows) {
     if (BootEntries[BootEntryIndex].Type != OcBootWindows) {
       for (Index = 0; Index < NumBootEntries; ++Index) {
@@ -777,32 +778,32 @@ OcGetDefaultBootEntry (
         }
       }
     }
-    return BootEntryIndex;
-  }
-  //
-  // Checking for Nvram efi-boot-device-data for last booted entry, and set default boot entry to the same one if possible. strictly for Osx and Windows for now.
-  //
-  Status = GetVariable2 (
-             L"efi-boot-device-data",
-             &gAppleBootVariableGuid,
-             (VOID **)&UefiDevicePath,
-             &UefiDevicePathSize
-             );
-  if (!EFI_ERROR (Status) && IsDevicePathValid (UefiDevicePath, UefiDevicePathSize)) {
-    DevicePathText = ConvertDevicePathToText (UefiDevicePath, FALSE, FALSE);
-    if (DevicePathText != NULL) {
-      DEBUG ((DEBUG_INFO, "OCB: efi-boot-device-data: %s\n", DevicePathText));
-      FreePool (DevicePathText);
-    }
-    
-    for (Index = 0; Index < NumBootEntries; ++Index) {
-      if (BootEntries[Index].Type == OcBootWindows || BootEntries[Index].Type == OcBootApple) {
-        if (GetDevicePathSize (BootEntries[Index].DevicePath) == UefiDevicePathSize && CompareMem (BootEntries[Index].DevicePath, UefiDevicePath, UefiDevicePathSize) == 0) {
-          DEBUG ((DEBUG_INFO, "OCB: Found a match, boot entry (%u) with efi-boot-device-data (%r/%u)\n", (UINT32) Index, (UINT32) UefiDevicePathSize, (UINT32) GetDevicePathSize (BootEntries[Index].DevicePath)));
-          if (BootEntries[Index].Type != BootEntries[(UINTN) BootEntryIndex].Type || Index != (UINTN) BootEntryIndex) {
-            BootEntryIndex = (UINT32) Index;
+  } else {
+    //
+    // Checking for Nvram efi-boot-device-data for last booted entry, and set default boot entry to the same one if possible. strictly for Osx and Windows for now.
+    //
+    Status = GetVariable2 (
+               L"efi-boot-device-data",
+               &gAppleBootVariableGuid,
+               (VOID **)&UefiDevicePath,
+               &UefiDevicePathSize
+               );
+    if (!EFI_ERROR (Status) && IsDevicePathValid (UefiDevicePath, UefiDevicePathSize)) {
+      DevicePathText = ConvertDevicePathToText (UefiDevicePath, FALSE, FALSE);
+      if (DevicePathText != NULL) {
+        DEBUG ((DEBUG_INFO, "OCB: efi-boot-device-data: %s\n", DevicePathText));
+        FreePool (DevicePathText);
+      }
+      
+      for (Index = 0; Index < NumBootEntries; ++Index) {
+        if (BootEntries[Index].Type == OcBootWindows || BootEntries[Index].Type == OcBootApple) {
+          if (GetDevicePathSize (BootEntries[Index].DevicePath) == UefiDevicePathSize && CompareMem (BootEntries[Index].DevicePath, UefiDevicePath, UefiDevicePathSize) == 0) {
+            DEBUG ((DEBUG_INFO, "OCB: Found a match, boot entry (%u) with efi-boot-device-data (%r/%u)\n", (UINT32) Index, (UINT32) UefiDevicePathSize, (UINT32) GetDevicePathSize (BootEntries[Index].DevicePath)));
+            if (BootEntries[Index].Type != BootEntries[(UINTN) BootEntryIndex].Type || Index != (UINTN) BootEntryIndex) {
+              BootEntryIndex = (UINT32) Index;
+            }
+            break;
           }
-          break;
         }
       }
     }
