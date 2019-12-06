@@ -132,7 +132,18 @@ WaitForKeyIndex (
   if (Key.ScanCode == SCAN_ESC || Key.UnicodeChar == '0') {
     return OC_INPUT_ABORTED;
   }
-
+  
+  if (Key.ScanCode == SCAN_UP) {
+    return OC_INPUT_UP;
+  }
+  
+  if (Key.ScanCode == SCAN_DOWN) {
+    return OC_INPUT_DOWN;
+  }
+  
+  if (CHAR_CARRIAGE_RETURN == Key.UnicodeChar) {
+    return OC_INPUT_RETURN;
+  }
   //
   // Using loop to allow OC_INPUT_STR changes.
   //

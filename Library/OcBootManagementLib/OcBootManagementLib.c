@@ -820,7 +820,7 @@ OcShowSimpleBootMenu (
 
     for (Index = 0; Index < MIN (Count, OC_INPUT_MAX); ++Index) {
       Code[0] = OC_INPUT_STR[Index];
-      gST->ConOut->OutputString (gST->ConOut, DefaultEntry == Index && TimeOutSeconds > 0 ? L"* " : L"  ");
+      gST->ConOut->OutputString (gST->ConOut, DefaultEntry == Index ? L"* " : L"  ");
       gST->ConOut->OutputString (gST->ConOut, Code);
       gST->ConOut->OutputString (gST->ConOut, L". ");
       gST->ConOut->OutputString (gST->ConOut, BootEntries[Index].Name);
@@ -845,13 +845,24 @@ OcShowSimpleBootMenu (
       } else {
         KeyIndex = WaitForKeyIndex (TimeOutSeconds);
       }
-      if (KeyIndex == OC_INPUT_TIMEOUT) {
+      if (KeyIndex == OC_INPUT_TIMEOUT || KeyIndex == OC_INPUT_RETURN) {
         *ChosenBootEntry = &BootEntries[DefaultEntry];
-        gST->ConOut->OutputString (gST->ConOut, L"Timeout\r\n");
+        Code[0] = OC_INPUT_STR[DefaultEntry];
+        gST->ConOut->OutputString (gST->ConOut, Code);
+        gST->ConOut->OutputString (gST->ConOut, L"\r\n");
         return EFI_SUCCESS;
       } else if (KeyIndex == OC_INPUT_ABORTED) {
         gST->ConOut->OutputString (gST->ConOut, L"Aborted\r\n");
-        return EFI_ABORTED;
+        TimeOutSeconds = 0;
+        break;
+      } else if (KeyIndex == OC_INPUT_UP) {
+        DefaultEntry = DefaultEntry > 0 ? --DefaultEntry : Count - 1;
+        TimeOutSeconds = 0;
+        break;
+      } else if (KeyIndex == OC_INPUT_DOWN) {
+        DefaultEntry = DefaultEntry < (Count - 1) ? ++DefaultEntry : 0;
+        TimeOutSeconds = 0;
+        break;
       } else if (KeyIndex != OC_INPUT_INVALID && (UINTN)KeyIndex < Count) {
         ASSERT (KeyIndex >= 0);
         *ChosenBootEntry = &BootEntries[KeyIndex];
