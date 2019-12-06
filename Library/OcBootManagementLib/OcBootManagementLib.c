@@ -819,6 +819,12 @@ OcShowSimpleBootMenu (
     gST->ConOut->OutputString (gST->ConOut, L"\r\n\r\n");
 
     for (Index = 0; Index < MIN (Count, OC_INPUT_MAX); ++Index) {
+      if (DefaultEntry == Index) {
+        gST->ConOut->SetAttribute (gST->ConOut, EFI_TEXT_ATTR (EFI_WHITE, EFI_BLACK));
+      } else {
+        gST->ConOut->SetAttribute (gST->ConOut, EFI_TEXT_ATTR (EFI_LIGHTGRAY, EFI_BLACK));
+      }
+      
       Code[0] = OC_INPUT_STR[Index];
       gST->ConOut->OutputString (gST->ConOut, DefaultEntry == Index ? L"* " : L"  ");
       gST->ConOut->OutputString (gST->ConOut, Code);
@@ -836,7 +842,8 @@ OcShowSimpleBootMenu (
     if (Index < Count) {
       gST->ConOut->OutputString (gST->ConOut, L"WARN: Some entries were skipped!\r\n");
     }
-
+    
+    gST->ConOut->SetAttribute (gST->ConOut, EFI_TEXT_ATTR (EFI_WHITE, EFI_BLACK));
     gST->ConOut->OutputString (gST->ConOut, L"\r\nChoose boot entry: ");
 
     while (TRUE) {
