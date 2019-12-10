@@ -895,3 +895,55 @@ SetConsoleMode (
 
   return EFI_SUCCESS;
 }
+
+VOID
+SetScreenResolution (
+  IN CONST CHAR8         *String,
+  IN BOOLEAN             Reconnect
+  )
+{
+  EFI_STATUS   Status;
+  UINT32       Width;
+  UINT32       Height;
+  UINT32       Bpp;
+  BOOLEAN      SetMax;
+  
+  ASSERT (String != NULL);
+  
+  ParseScreenResolution (
+    String,
+    &Width,
+    &Height,
+    &Bpp,
+    &SetMax
+    );
+
+  DEBUG ((
+    DEBUG_INFO,
+    "OCC: Requested resolution is %ux%u@%u (max: %d) from %a\n",
+    Width,
+    Height,
+    Bpp,
+    SetMax,
+    String
+    ));
+
+  if (SetMax || (Width > 0 && Height > 0)) {
+    Status = SetConsoleResolution (
+      Width,
+      Height,
+      Bpp,
+      Reconnect
+      );
+    DEBUG ((
+      EFI_ERROR (Status) ? DEBUG_WARN : DEBUG_INFO,
+      "OCC: Changed resolution to %ux%u@%u (max: %d) from %a - %r\n",
+      Width,
+      Height,
+      Bpp,
+      SetMax,
+      String,
+      Status
+      ));
+  }
+}
