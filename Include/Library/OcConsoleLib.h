@@ -157,8 +157,8 @@ SetConsoleMode (
 /**
   Set screen resolution from string.
 
-  @param[in]   String   Resolution in WxH format.
-  @param[out]  Max      Reconnect console output handles after resolution change.
+  @param[in]   String            Resolution in WxH format.
+  @param[in]   Reconnect     Reconnect console output handles after resolution change.
  
 **/
 VOID
