@@ -792,18 +792,29 @@ OcShowSimpleBootMenu (
   OUT OC_BOOT_ENTRY               **ChosenBootEntry
   )
 {
-  UINTN   Index;
-  UINTN   Length;
-  INTN    KeyIndex;
-  CHAR16  Code[2];
-  UINT32  TimeOutSeconds;
-
+  UINTN                           Index;
+  UINTN                           Length;
+  INTN                            KeyIndex;
+  CHAR16                          Code[2];
+  UINT32                          TimeOutSeconds;
+  UINTN                           Columns;
+  UINTN                           Rows;
+  
   Code[1] = '\0';
 
   TimeOutSeconds = Context->TimeoutSeconds;
+  
+  gST->ConOut->QueryMode (
+                 gST->ConOut,
+                 gST->ConOut->Mode->Mode,
+                 &Columns,
+                 &Rows
+                 );
 
   while (TRUE) {
     gST->ConOut->ClearScreen (gST->ConOut);
+    gST->ConOut->SetAttribute (gST->ConOut, EFI_TEXT_ATTR (EFI_LIGHTGRAY, EFI_BLACK));
+    gST->ConOut->SetCursorPosition (gST->ConOut, (Columns - 30) / 2, (Rows - Count - 6) / 2);
     gST->ConOut->OutputString (gST->ConOut, L"OpenCore Boot Menu");
 
     if (Context->TitleSuffix != NULL) {
@@ -816,15 +827,13 @@ OcShowSimpleBootMenu (
       gST->ConOut->OutputString (gST->ConOut, L")");
     }
 
-    gST->ConOut->OutputString (gST->ConOut, L"\r\n\r\n");
-
     for (Index = 0; Index < MIN (Count, OC_INPUT_MAX); ++Index) {
       if (DefaultEntry == Index) {
         gST->ConOut->SetAttribute (gST->ConOut, EFI_TEXT_ATTR (EFI_WHITE, EFI_BLACK));
       } else {
         gST->ConOut->SetAttribute (gST->ConOut, EFI_TEXT_ATTR (EFI_LIGHTGRAY, EFI_BLACK));
       }
-      
+      gST->ConOut->SetCursorPosition (gST->ConOut, (Columns - 30) / 2, Index + 2 + (Rows - Count - 6) / 2);
       Code[0] = OC_INPUT_STR[Index];
       gST->ConOut->OutputString (gST->ConOut, DefaultEntry == Index ? L"* " : L"  ");
       gST->ConOut->OutputString (gST->ConOut, Code);
@@ -836,15 +845,11 @@ OcShowSimpleBootMenu (
       if (BootEntries[Index].IsFolder) {
         gST->ConOut->OutputString (gST->ConOut, L" (dmg)");
       }
-      gST->ConOut->OutputString (gST->ConOut, L"\r\n");
-    }
-
-    if (Index < Count) {
-      gST->ConOut->OutputString (gST->ConOut, L"WARN: Some entries were skipped!\r\n");
     }
     
-    gST->ConOut->SetAttribute (gST->ConOut, EFI_TEXT_ATTR (EFI_WHITE, EFI_BLACK));
-    gST->ConOut->OutputString (gST->ConOut, L"\r\nChoose boot entry: ");
+    gST->ConOut->SetAttribute (gST->ConOut, EFI_TEXT_ATTR (EFI_LIGHTGRAY, EFI_BLACK));
+    gST->ConOut->SetCursorPosition (gST->ConOut, (Columns - 30) / 2, Index + 4 + (Rows - Count - 6) / 2);
+    gST->ConOut->OutputString (gST->ConOut, L"Select boot entry: ");
 
     while (TRUE) {
       if (Context->PollAppleHotKeys) {
