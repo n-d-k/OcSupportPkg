@@ -125,10 +125,10 @@ ParseConsoleControlBehaviour (
 /**
   Set screen resolution on console handle.
 
-  @param[in]  Width          Resolution width or 0 for Max.
-  @param[in]  Height        Resolution height or 0 for Max.
-  @param[in]  Bpp               Resolution bpp or 0 for automatic.
-  @param[in]  Reconnect  Reconnect console output handles after resolution change.
+  @param[in]  Width           Resolution width or 0 for Max.
+  @param[in]  Height         Resolution height or 0 for Max.
+  @param[in]  Bpp                Resolution bpp or 0 for automatic.
+  @param[in]  Reconnect   Reconnect console output handles after resolution change.
 
   @retval EFI_SUCCESS on success.
 **/
