@@ -947,3 +947,48 @@ SetScreenResolution (
       ));
   }
 }
+
+VOID
+SetConsolePicker (
+  IN CONST CHAR8         *String,
+  IN BOOLEAN             ShowPicker
+  )
+{
+  EFI_STATUS             Status;
+  UINT32                 Width;
+  UINT32                 Height;
+  BOOLEAN                SetMax;
+  
+  ASSERT (String != NULL);
+  
+  if (ShowPicker) {
+    ParseConsoleMode (
+      String,
+      &Width,
+      &Height,
+      &SetMax
+      );
+
+    DEBUG ((
+      DEBUG_INFO,
+      "OCC: Requested console mode is %ux%u (max: %d) from %a\n",
+      Width,
+      Height,
+      SetMax,
+      String
+      ));
+
+    if (SetMax || (Width > 0 && Height > 0)) {
+      Status = SetConsoleMode (Width, Height);
+      DEBUG ((
+        EFI_ERROR (Status) ? DEBUG_WARN : DEBUG_INFO,
+        "OCC: Changed console mode to %ux%u (max: %d) from %a - %r\n",
+        Width,
+        Height,
+        SetMax,
+        String,
+        Status
+        ));
+    }
+  }
+}

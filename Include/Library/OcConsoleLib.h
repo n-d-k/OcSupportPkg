@@ -125,9 +125,9 @@ ParseConsoleControlBehaviour (
 /**
   Set screen resolution on console handle.
 
-  @param[in]  Width      Resolution width or 0 for Max.
-  @param[in]  Height     Resolution height or 0 for Max.
-  @param[in]  Bpp        Resolution bpp or 0 for automatic.
+  @param[in]  Width          Resolution width or 0 for Max.
+  @param[in]  Height        Resolution height or 0 for Max.
+  @param[in]  Bpp               Resolution bpp or 0 for automatic.
   @param[in]  Reconnect  Reconnect console output handles after resolution change.
 
   @retval EFI_SUCCESS on success.
@@ -143,7 +143,7 @@ SetConsoleResolution (
 /**
   Set console mode.
 
-  @param[in]  Width     Resolution width or 0 for Max.
+  @param[in]  Width      Resolution width or 0 for Max.
   @param[in]  Height    Resolution height or 0 for Max.
 
   @retval EFI_SUCCESS on success.
@@ -165,6 +165,19 @@ VOID
 SetScreenResolution (
   IN CONST CHAR8         *String,
   IN BOOLEAN             Reconnect
+  );
+
+/**
+  Set Console Picker.
+
+  @param[in]   String            Resolution in WxH format or Max.
+  @param[in]   ShowPicker   Boolean Show Picker.
+ 
+**/
+VOID
+SetConsolePicker (
+  IN CONST CHAR8         *String,
+  IN BOOLEAN             ShowPicker
   );
 
 #endif // OC_CONSOLE_LIB_H
