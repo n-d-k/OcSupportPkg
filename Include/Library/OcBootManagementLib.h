@@ -79,6 +79,10 @@ typedef struct OC_BOOT_ENTRY_ {
   //
   BOOLEAN                   IsFolder;
   //
+  // Set whether or not it's visible in boot picker menu
+  //
+  BOOLEAN                   Hidden;
+  //
   // Load option data (usually "boot args") size.
   //
   UINT32                    LoadOptionsSize;
@@ -314,6 +318,10 @@ typedef struct {
   // Entry boot arguments.
   //
   CONST CHAR8  *Arguments;
+  //
+  // Boolean Hidden.
+  //
+  BOOLEAN      Hidden;
 } OC_PICKER_ENTRY;
 
 /**

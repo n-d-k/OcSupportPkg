@@ -109,7 +109,7 @@ OcDescribeBootEntry (
   // BootPicker only uses it for entry deduplication, and we cannot figure out the name
   // on an encrypted volume anyway.
   //
-
+  BootEntry->Hidden = FALSE;
   //
   // Windows boot entry may have a custom name, so ensure OcBootWindows is set correctly.
   //
@@ -131,6 +131,7 @@ OcDescribeBootEntry (
        || !StrCmp (BootEntry->Name, L"Recovery"))) {
       if (BootEntry->Type == OcBootUnknown || BootEntry->Type == OcBootApple) {
         BootEntry->Type = OcBootAppleRecovery;
+        BootEntry->Hidden = TRUE;
       }
       RecoveryBootName = InternalGetAppleRecoveryName (FileSystem, BootDirectoryName);
       if (RecoveryBootName != NULL) {
@@ -175,6 +176,8 @@ OcResetBootEntry (
     BootEntry->LoadOptions     = NULL;
     BootEntry->LoadOptionsSize = 0;
   }
+  
+  BootEntry->Hidden = FALSE;
 }
 
 VOID
@@ -508,7 +511,9 @@ OcScanForBootEntries (
           Entries[EntryIndex].LoadOptionsSize = 0;
         }
       }
-
+      
+      Entries[EntryIndex].Hidden = Context->CustomEntries[Index].Hidden;
+      
       ++EntryIndex;
     }
     FreePool (Modified);
@@ -525,6 +530,7 @@ OcScanForBootEntries (
     }
 
     Entries[EntryIndex].Type         = OcBootSystem;
+    Entries[EntryIndex].Hidden       = FALSE;
     Entries[EntryIndex].SystemAction = InternalSystemActionResetNvram;
     ++EntryIndex;
   }
@@ -834,7 +840,8 @@ OcShowSimpleBootMenu (
 
     VisibleIndex = 0;
     for (Index = 0; Index < MIN (Count, OC_INPUT_MAX); ++Index) {
-      if (BootEntries[Index].Type == OcBootAppleRecovery && !ShowAll) {
+      if ((BootEntries[Index].Hidden && !ShowAll)
+          || (BootEntries[Index].Type == OcBootSystem && !ShowAll)) {
         continue;
       }
       if (DefaultEntry == Index) {
@@ -881,7 +888,8 @@ OcShowSimpleBootMenu (
         break;
       } else if (KeyIndex == OC_INPUT_SPACEBAR) {
         ShowAll = !ShowAll;
-        while (BootEntries[DefaultEntry].Type == OcBootAppleRecovery && !ShowAll && DefaultEntry > 0) {
+        while ((BootEntries[DefaultEntry].Hidden && !ShowAll && DefaultEntry > 0)
+               || (BootEntries[DefaultEntry].Type == OcBootSystem && !ShowAll && DefaultEntry > 0)) {
           --DefaultEntry;
         }
         TimeOutSeconds = 0;
