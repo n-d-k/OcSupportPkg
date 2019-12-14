@@ -799,8 +799,13 @@ OcShowSimpleBootMenu (
   UINT32                          TimeOutSeconds;
   UINTN                           Columns;
   UINTN                           Rows;
+  UINTN                           VisibleList[Count];
+  UINTN                           VisibleIndex;
+  BOOLEAN                         ShowAll;
+  UINTN                           Selected;
   
   Code[1] = '\0';
+  ShowAll = FALSE;
 
   TimeOutSeconds = Context->TimeoutSeconds;
   
@@ -827,14 +832,20 @@ OcShowSimpleBootMenu (
       gST->ConOut->OutputString (gST->ConOut, L")");
     }
 
+    VisibleIndex = 0;
     for (Index = 0; Index < MIN (Count, OC_INPUT_MAX); ++Index) {
+      if (BootEntries[Index].Type == OcBootAppleRecovery && !ShowAll) {
+        continue;
+      }
       if (DefaultEntry == Index) {
+        Selected = VisibleIndex;
         gST->ConOut->SetAttribute (gST->ConOut, EFI_TEXT_ATTR (EFI_WHITE, EFI_BLACK));
       } else {
         gST->ConOut->SetAttribute (gST->ConOut, EFI_TEXT_ATTR (EFI_LIGHTGRAY, EFI_BLACK));
       }
-      gST->ConOut->SetCursorPosition (gST->ConOut, (Columns - 30) / 2, Index + 2 + (Rows - Count - 6) / 2);
-      Code[0] = OC_INPUT_STR[Index];
+      gST->ConOut->SetCursorPosition (gST->ConOut, (Columns - 30) / 2, VisibleIndex + 2 + (Rows - Count - 6) / 2);
+      Code[0] = OC_INPUT_STR[VisibleIndex];
+      VisibleList[VisibleIndex] = Index;
       gST->ConOut->OutputString (gST->ConOut, DefaultEntry == Index ? L"* " : L"  ");
       gST->ConOut->OutputString (gST->ConOut, Code);
       gST->ConOut->OutputString (gST->ConOut, L". ");
@@ -845,10 +856,11 @@ OcShowSimpleBootMenu (
       if (BootEntries[Index].IsFolder) {
         gST->ConOut->OutputString (gST->ConOut, L" (dmg)");
       }
+      ++VisibleIndex;
     }
     
     gST->ConOut->SetAttribute (gST->ConOut, EFI_TEXT_ATTR (EFI_LIGHTGRAY, EFI_BLACK));
-    gST->ConOut->SetCursorPosition (gST->ConOut, (Columns - 30) / 2, Index + 4 + (Rows - Count - 6) / 2);
+    gST->ConOut->SetCursorPosition (gST->ConOut, (Columns - 30) / 2, VisibleIndex + 4 + (Rows - Count - 6) / 2);
     gST->ConOut->OutputString (gST->ConOut, L"Select boot entry: ");
 
     while (TRUE) {
@@ -867,17 +879,24 @@ OcShowSimpleBootMenu (
         gST->ConOut->OutputString (gST->ConOut, L"Aborted\r\n");
         TimeOutSeconds = 0;
         break;
+      } else if (KeyIndex == OC_INPUT_SPACEBAR) {
+        ShowAll = !ShowAll;
+        while (BootEntries[DefaultEntry].Type == OcBootAppleRecovery && !ShowAll && DefaultEntry > 0) {
+          --DefaultEntry;
+        }
+        TimeOutSeconds = 0;
+        break;
       } else if (KeyIndex == OC_INPUT_UP) {
-        DefaultEntry = DefaultEntry > 0 ? --DefaultEntry : Count - 1;
+        DefaultEntry = Selected > 0 ? VisibleList[Selected - 1] : VisibleList[VisibleIndex - 1];
         TimeOutSeconds = 0;
         break;
       } else if (KeyIndex == OC_INPUT_DOWN) {
-        DefaultEntry = DefaultEntry < (Count - 1) ? ++DefaultEntry : 0;
+        DefaultEntry = Selected < (VisibleIndex - 1) ? VisibleList[Selected + 1] : 0;
         TimeOutSeconds = 0;
         break;
-      } else if (KeyIndex != OC_INPUT_INVALID && (UINTN)KeyIndex < Count) {
+      } else if (KeyIndex != OC_INPUT_INVALID && (UINTN)KeyIndex < VisibleIndex) {
         ASSERT (KeyIndex >= 0);
-        *ChosenBootEntry = &BootEntries[KeyIndex];
+        *ChosenBootEntry = &BootEntries[VisibleList[KeyIndex]];
         Code[0] = OC_INPUT_STR[KeyIndex];
         gST->ConOut->OutputString (gST->ConOut, Code);
         gST->ConOut->OutputString (gST->ConOut, L"\r\n");

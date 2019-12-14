@@ -144,6 +144,10 @@ WaitForKeyIndex (
   if (CHAR_CARRIAGE_RETURN == Key.UnicodeChar) {
     return OC_INPUT_RETURN;
   }
+  
+  if (Key.UnicodeChar == ' ') {
+    return OC_INPUT_SPACEBAR;
+  }
   //
   // Using loop to allow OC_INPUT_STR changes.
   //

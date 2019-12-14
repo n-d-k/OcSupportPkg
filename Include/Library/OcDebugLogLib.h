@@ -109,6 +109,7 @@ WaitForKeyPress (
 #define OC_INPUT_UP       -4 ///< Arrow Up
 #define OC_INPUT_DOWN     -5 ///< Arrow Down
 #define OC_INPUT_RETURN   -6 ///< Enter/Return key
+#define OC_INPUT_SPACEBAR -7 ///< SpaceBar
 
 /**
   Obtains key index from user input.
