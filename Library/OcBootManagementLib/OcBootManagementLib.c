@@ -799,6 +799,7 @@ OcShowSimpleBootMenu (
   )
 {
   UINTN                           Index;
+  UINTN                           Length;
   INTN                            KeyIndex;
   CHAR16                          Code[2];
   UINT32                          TimeOutSeconds;
@@ -820,27 +821,38 @@ OcShowSimpleBootMenu (
                  &Columns,
                  &Rows
                  );
-
-  while (TRUE) {
-    gST->ConOut->ClearScreen (gST->ConOut);
-    gST->ConOut->SetAttribute (gST->ConOut, EFI_TEXT_ATTR (EFI_LIGHTGRAY, EFI_BLACK));
-    gST->ConOut->SetCursorPosition (gST->ConOut, (Columns - 64) / 2, (Rows - Count - 16) / 2);
-    gST->ConOut->OutputString (gST->ConOut,
-      L"  _____   ______  _______ __  ___ _____  _____   _____   _______"
-      );
-    gST->ConOut->SetCursorPosition (gST->ConOut, (Columns - 64) / 2, ((Rows - Count - 16) / 2) + 1);
-    gST->ConOut->OutputString (gST->ConOut,
-      L" / ___ \\ /   _  )/  __  //  |/  //  ___)/ ___ \\ /  __ \\ /  __  /"
-      );
-    gST->ConOut->SetCursorPosition (gST->ConOut, (Columns - 64) / 2, ((Rows - Count - 16) / 2) + 2);
-    gST->ConOut->OutputString (gST->ConOut,
-      L"/ /__/ //  /___//  (__ //      //  /__ / /__/ //  /_/ //  (___/ "
-      );
-    gST->ConOut->SetCursorPosition (gST->ConOut, (Columns - 64) / 2, ((Rows - Count - 16) / 2) + 3);
-    gST->ConOut->OutputString (gST->ConOut,
-      L"\\_____//__/    /______ /__/|__/ \\_____)\\_____//__/ \\__\\\\_____   "
-      );
+  
+  gST->ConOut->ClearScreen (gST->ConOut);
+  gST->ConOut->SetAttribute (gST->ConOut, EFI_TEXT_ATTR (EFI_LIGHTGRAY, EFI_BLACK));
+  gST->ConOut->SetCursorPosition (gST->ConOut, (Columns - 64) / 2, (Rows - Count - 16) / 2);
+  gST->ConOut->OutputString (gST->ConOut,
+    L"  _____   ______  _______ __  ___ _____  _____   _____   _______"
+    );
+  gST->ConOut->SetCursorPosition (gST->ConOut, (Columns - 64) / 2, ((Rows - Count - 16) / 2) + 1);
+  gST->ConOut->OutputString (gST->ConOut,
+    L" / ___ \\ /   _  )/  __  //  |/  //  ___)/ ___ \\ /  __ \\ /  __  /"
+    );
+  gST->ConOut->SetCursorPosition (gST->ConOut, (Columns - 64) / 2, ((Rows - Count - 16) / 2) + 2);
+  gST->ConOut->OutputString (gST->ConOut,
+    L"/ /__/ //  /___//  (__ //      //  /__ / /__/ //  /_/ //  (___/ "
+    );
+  gST->ConOut->SetCursorPosition (gST->ConOut, (Columns - 64) / 2, ((Rows - Count - 16) / 2) + 3);
+  gST->ConOut->OutputString (gST->ConOut,
+    L"\\_____//__/    /______ /__/|__/ \\_____)\\_____//__/ \\__\\\\_____   "
+    );
+  if (Context->TitleSuffix != NULL) {
+    Length = AsciiStrLen (Context->TitleSuffix);
+    gST->ConOut->SetAttribute (gST->ConOut, EFI_TEXT_ATTR (EFI_DARKGRAY, EFI_BLACK));
+    gST->ConOut->SetCursorPosition (gST->ConOut, Columns - (Length + 7), Rows - 1);
+    gST->ConOut->OutputString (gST->ConOut, L"N-D-K ");
     
+    for (Index = 0; Index < Length; ++Index) {
+      Code[0] = Context->TitleSuffix[Index];
+      gST->ConOut->OutputString (gST->ConOut, Code);
+    }
+  }
+  
+  while (TRUE) {
     VisibleIndex = 0;
     for (Index = 0; Index < MIN (Count, OC_INPUT_MAX); ++Index) {
       if ((BootEntries[Index].Hidden && !ShowAll)
@@ -888,14 +900,26 @@ OcShowSimpleBootMenu (
           --DefaultEntry;
         }
         TimeOutSeconds = 0;
+        for (Index = 0; Index < VisibleIndex; ++Index) {
+          gST->ConOut->SetCursorPosition (gST->ConOut, (Columns - 30) / 2, Index + 2 + (Rows - Count - 6) / 2);
+          gST->ConOut->OutputString (gST->ConOut, L"                                        ");
+        }
         break;
       } else if (KeyIndex == OC_INPUT_UP) {
         DefaultEntry = Selected > 0 ? VisibleList[Selected - 1] : VisibleList[VisibleIndex - 1];
         TimeOutSeconds = 0;
+        for (Index = 0; Index < VisibleIndex; ++Index) {
+          gST->ConOut->SetCursorPosition (gST->ConOut, (Columns - 30) / 2, Index + 2 + (Rows - Count - 6) / 2);
+          gST->ConOut->OutputString (gST->ConOut, L"                                        ");
+        }
         break;
       } else if (KeyIndex == OC_INPUT_DOWN) {
         DefaultEntry = Selected < (VisibleIndex - 1) ? VisibleList[Selected + 1] : 0;
         TimeOutSeconds = 0;
+        for (Index = 0; Index < VisibleIndex; ++Index) {
+          gST->ConOut->SetCursorPosition (gST->ConOut, (Columns - 30) / 2, Index + 2 + (Rows - Count - 6) / 2);
+          gST->ConOut->OutputString (gST->ConOut, L"                                        ");
+        }
         break;
       } else if (KeyIndex != OC_INPUT_INVALID && (UINTN)KeyIndex < VisibleIndex) {
         ASSERT (KeyIndex >= 0);
