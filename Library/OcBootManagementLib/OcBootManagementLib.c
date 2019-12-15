@@ -826,19 +826,19 @@ OcShowSimpleBootMenu (
   gST->ConOut->SetAttribute (gST->ConOut, EFI_TEXT_ATTR (EFI_LIGHTGRAY, EFI_BLACK));
   gST->ConOut->SetCursorPosition (gST->ConOut, (Columns - 64) / 2, (Rows - Count - 16) / 2);
   gST->ConOut->OutputString (gST->ConOut,
-    L"  _____   ______  _______ __  ___ _____  _____   _____   _______"
+    L"  _____   ______  _____   __  ___ _____  _____   _____   _____  "
     );
   gST->ConOut->SetCursorPosition (gST->ConOut, (Columns - 64) / 2, ((Rows - Count - 16) / 2) + 1);
   gST->ConOut->OutputString (gST->ConOut,
-    L" / ___ \\ /   _  )/  __  //  |/  //  ___)/ ___ \\ /  __ \\ /  __  /"
+    L" / ___ \\ /   _  )/  __ \\ /  |/  //  ___)/ ___ \\ /  __ \\ /  __ \\ "
     );
   gST->ConOut->SetCursorPosition (gST->ConOut, (Columns - 64) / 2, ((Rows - Count - 16) / 2) + 2);
   gST->ConOut->OutputString (gST->ConOut,
-    L"/ /__/ //  /___//  (__ //      //  /__ / /__/ //  /_/ //  (___/ "
+    L"/ /__/ //  /___//  (___//      //  /__ / /__/ //  /_/ //  (___/ "
     );
   gST->ConOut->SetCursorPosition (gST->ConOut, (Columns - 64) / 2, ((Rows - Count - 16) / 2) + 3);
   gST->ConOut->OutputString (gST->ConOut,
-    L"\\_____//__/    /______ /__/|__/ \\_____)\\_____//__/ \\__\\\\_____   "
+    L"\\_____//__/     \\_____ /__/|__/ \\_____)\\_____//__/ \\__\\\\_____   "
     );
   if (Context->TitleSuffix != NULL) {
     Length = AsciiStrLen (Context->TitleSuffix);
