@@ -799,7 +799,6 @@ OcShowSimpleBootMenu (
   )
 {
   UINTN                           Index;
-  UINTN                           Length;
   INTN                            KeyIndex;
   CHAR16                          Code[2];
   UINT32                          TimeOutSeconds;
@@ -825,19 +824,23 @@ OcShowSimpleBootMenu (
   while (TRUE) {
     gST->ConOut->ClearScreen (gST->ConOut);
     gST->ConOut->SetAttribute (gST->ConOut, EFI_TEXT_ATTR (EFI_LIGHTGRAY, EFI_BLACK));
-    gST->ConOut->SetCursorPosition (gST->ConOut, (Columns - 30) / 2, (Rows - Count - 6) / 2);
-    gST->ConOut->OutputString (gST->ConOut, L"OpenCore Boot Menu");
-
-    if (Context->TitleSuffix != NULL) {
-      Length = AsciiStrLen (Context->TitleSuffix);
-      gST->ConOut->OutputString (gST->ConOut, L" (");
-      for (Index = 0; Index < Length; ++Index) {
-        Code[0] = Context->TitleSuffix[Index];
-        gST->ConOut->OutputString (gST->ConOut, Code);
-      }
-      gST->ConOut->OutputString (gST->ConOut, L")");
-    }
-
+    gST->ConOut->SetCursorPosition (gST->ConOut, (Columns - 64) / 2, (Rows - Count - 16) / 2);
+    gST->ConOut->OutputString (gST->ConOut,
+      L"  _____   ______  _______ __  ___ _____  _____   _____   _______"
+      );
+    gST->ConOut->SetCursorPosition (gST->ConOut, (Columns - 64) / 2, ((Rows - Count - 16) / 2) + 1);
+    gST->ConOut->OutputString (gST->ConOut,
+      L" / ___ \\ /   _  )/  __  //  |/  //  ___)/ ___ \\ /  __ \\ /  __  /"
+      );
+    gST->ConOut->SetCursorPosition (gST->ConOut, (Columns - 64) / 2, ((Rows - Count - 16) / 2) + 2);
+    gST->ConOut->OutputString (gST->ConOut,
+      L"/ /__/ //  /___//  (__ //      //  /__ / /__/ //  /_/ //  (___/ "
+      );
+    gST->ConOut->SetCursorPosition (gST->ConOut, (Columns - 64) / 2, ((Rows - Count - 16) / 2) + 3);
+    gST->ConOut->OutputString (gST->ConOut,
+      L"\\_____//__/    /______ /__/|__/ \\_____)\\_____//__/ \\__\\\\_____   "
+      );
+    
     VisibleIndex = 0;
     for (Index = 0; Index < MIN (Count, OC_INPUT_MAX); ++Index) {
       if ((BootEntries[Index].Hidden && !ShowAll)
@@ -865,10 +868,6 @@ OcShowSimpleBootMenu (
       }
       ++VisibleIndex;
     }
-    
-    gST->ConOut->SetAttribute (gST->ConOut, EFI_TEXT_ATTR (EFI_LIGHTGRAY, EFI_BLACK));
-    gST->ConOut->SetCursorPosition (gST->ConOut, (Columns - 30) / 2, VisibleIndex + 4 + (Rows - Count - 6) / 2);
-    gST->ConOut->OutputString (gST->ConOut, L"Select boot entry: ");
 
     while (TRUE) {
       if (Context->PollAppleHotKeys) {
@@ -878,12 +877,8 @@ OcShowSimpleBootMenu (
       }
       if (KeyIndex == OC_INPUT_TIMEOUT || KeyIndex == OC_INPUT_RETURN) {
         *ChosenBootEntry = &BootEntries[DefaultEntry];
-        Code[0] = OC_INPUT_STR[DefaultEntry];
-        gST->ConOut->OutputString (gST->ConOut, Code);
-        gST->ConOut->OutputString (gST->ConOut, L"\r\n");
         return EFI_SUCCESS;
       } else if (KeyIndex == OC_INPUT_ABORTED) {
-        gST->ConOut->OutputString (gST->ConOut, L"Aborted\r\n");
         TimeOutSeconds = 0;
         break;
       } else if (KeyIndex == OC_INPUT_SPACEBAR) {
@@ -905,9 +900,6 @@ OcShowSimpleBootMenu (
       } else if (KeyIndex != OC_INPUT_INVALID && (UINTN)KeyIndex < VisibleIndex) {
         ASSERT (KeyIndex >= 0);
         *ChosenBootEntry = &BootEntries[VisibleList[KeyIndex]];
-        Code[0] = OC_INPUT_STR[KeyIndex];
-        gST->ConOut->OutputString (gST->ConOut, Code);
-        gST->ConOut->OutputString (gST->ConOut, L"\r\n");
         return EFI_SUCCESS;
       }
 
