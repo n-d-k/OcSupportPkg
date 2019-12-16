@@ -799,6 +799,7 @@ OcShowSimpleBootMenu (
   )
 {
   EFI_SIMPLE_TEXT_OUTPUT_PROTOCOL *ConOut;
+  EFI_SIMPLE_TEXT_OUTPUT_MODE     SavedConsoleMode;
   UINTN                           Index;
   UINTN                           Length;
   INTN                            KeyIndex;
@@ -814,24 +815,34 @@ OcShowSimpleBootMenu (
   UINTN                           BannerRow;
   UINTN                           ItemCol;
   UINTN                           ItemRow;
-  
+  CHAR16                          *String;
+  UINTN                           MaxStrWidth;
+  UINTN                           StrWidth;
   
   Code[1] = '\0';
   ShowAll = FALSE;
   ConOut = gST->ConOut;
+  CopyMem (&SavedConsoleMode, ConOut->Mode, sizeof (SavedConsoleMode));
 
   TimeOutSeconds = Context->TimeoutSeconds;
   
+  MaxStrWidth = 0;
+  for (Index = 0; Index < MIN (Count, OC_INPUT_MAX); ++Index) {
+    StrWidth = UnicodeStringDisplayLength (BootEntries[Index].Name);
+    MaxStrWidth = MaxStrWidth > StrWidth ? MaxStrWidth : StrWidth;
+  }
+  
   ConOut->QueryMode (
             ConOut,
-            ConOut->Mode->Mode,
+            SavedConsoleMode.Mode,
             &Columns,
             &Rows
             );
   
+  MaxStrWidth = MaxStrWidth + 10;
   BannerCol = (Columns - 64) / 2;
   BannerRow = (Rows - (Count + 16)) / 2;
-  ItemCol = (Columns - 30) / 2;
+  ItemCol = (Columns - MaxStrWidth) / 2;
   ItemRow = (Rows - (Count + 2)) / 2;
   
   ConOut->ClearScreen (ConOut);
@@ -885,7 +896,7 @@ OcShowSimpleBootMenu (
       ConOut->OutputString (ConOut, L". ");
       ConOut->OutputString (ConOut, BootEntries[Index].Name);
       if (BootEntries[Index].IsExternal) {
-        ConOut->OutputString (ConOut, L" (external)");
+        ConOut->OutputString (ConOut, L" (ext)");
       }
       if (BootEntries[Index].IsFolder) {
         ConOut->OutputString (ConOut, L" (dmg)");
@@ -901,6 +912,9 @@ OcShowSimpleBootMenu (
       }
       if (KeyIndex == OC_INPUT_TIMEOUT || KeyIndex == OC_INPUT_RETURN) {
         *ChosenBootEntry = &BootEntries[DefaultEntry];
+        ConOut->EnableCursor      (ConOut, SavedConsoleMode.CursorVisible);
+        ConOut->SetCursorPosition (ConOut, SavedConsoleMode.CursorColumn, SavedConsoleMode.CursorRow);
+        ConOut->SetAttribute      (ConOut, SavedConsoleMode.Attribute);
         return EFI_SUCCESS;
       } else if (KeyIndex == OC_INPUT_ABORTED) {
         TimeOutSeconds = 0;
@@ -912,30 +926,51 @@ OcShowSimpleBootMenu (
           --DefaultEntry;
         }
         TimeOutSeconds = 0;
+        String = AllocateZeroPool (MaxStrWidth * sizeof (CHAR16));
+        ASSERT (String != NULL);
+        for (Index = 0; Index < MaxStrWidth - 1; ++Index) {
+          String[Index] = 0x20;
+        }
         for (Index = 0; Index < VisibleIndex; ++Index) {
           ConOut->SetCursorPosition (ConOut, ItemCol, ItemRow + Index);
-          ConOut->OutputString (ConOut, L"                                        ");
+          ConOut->OutputString (ConOut, String);
         }
+        FreePool (String);
         break;
       } else if (KeyIndex == OC_INPUT_UP) {
         DefaultEntry = Selected > 0 ? VisibleList[Selected - 1] : VisibleList[VisibleIndex - 1];
         TimeOutSeconds = 0;
+        String = AllocateZeroPool (MaxStrWidth * sizeof (CHAR16));
+        ASSERT (String != NULL);
+        for (Index = 0; Index < MaxStrWidth - 1; ++Index) {
+          String[Index] = 0x20;
+        }
         for (Index = 0; Index < VisibleIndex; ++Index) {
           ConOut->SetCursorPosition (ConOut, ItemCol, ItemRow + Index);
-          ConOut->OutputString (ConOut, L"                                        ");
+          ConOut->OutputString (ConOut, String);
         }
+        FreePool (String);
         break;
       } else if (KeyIndex == OC_INPUT_DOWN) {
         DefaultEntry = Selected < (VisibleIndex - 1) ? VisibleList[Selected + 1] : 0;
         TimeOutSeconds = 0;
+        String = AllocateZeroPool (MaxStrWidth * sizeof (CHAR16));
+        ASSERT (String != NULL);
+        for (Index = 0; Index < MaxStrWidth - 1; ++Index) {
+          String[Index] = 0x20;
+        }
         for (Index = 0; Index < VisibleIndex; ++Index) {
           ConOut->SetCursorPosition (ConOut, ItemCol, ItemRow + Index);
-          ConOut->OutputString (ConOut, L"                                        ");
+          ConOut->OutputString (ConOut, String);
         }
+        FreePool (String);
         break;
       } else if (KeyIndex != OC_INPUT_INVALID && (UINTN)KeyIndex < VisibleIndex) {
         ASSERT (KeyIndex >= 0);
         *ChosenBootEntry = &BootEntries[VisibleList[KeyIndex]];
+        ConOut->EnableCursor      (ConOut, SavedConsoleMode.CursorVisible);
+        ConOut->SetCursorPosition (ConOut, SavedConsoleMode.CursorColumn, SavedConsoleMode.CursorRow);
+        ConOut->SetAttribute      (ConOut, SavedConsoleMode.Attribute);
         return EFI_SUCCESS;
       }
 
