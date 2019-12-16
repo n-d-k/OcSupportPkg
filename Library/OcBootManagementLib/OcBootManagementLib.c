@@ -798,6 +798,7 @@ OcShowSimpleBootMenu (
   OUT OC_BOOT_ENTRY               **ChosenBootEntry
   )
 {
+  EFI_SIMPLE_TEXT_OUTPUT_PROTOCOL *ConOut;
   UINTN                           Index;
   UINTN                           Length;
   INTN                            KeyIndex;
@@ -809,46 +810,57 @@ OcShowSimpleBootMenu (
   UINTN                           VisibleIndex;
   BOOLEAN                         ShowAll;
   UINTN                           Selected;
+  UINTN                           BannerCol;
+  UINTN                           BannerRow;
+  UINTN                           ItemCol;
+  UINTN                           ItemRow;
+  
   
   Code[1] = '\0';
   ShowAll = FALSE;
+  ConOut = gST->ConOut;
 
   TimeOutSeconds = Context->TimeoutSeconds;
   
-  gST->ConOut->QueryMode (
-                 gST->ConOut,
-                 gST->ConOut->Mode->Mode,
-                 &Columns,
-                 &Rows
-                 );
+  ConOut->QueryMode (
+            ConOut,
+            ConOut->Mode->Mode,
+            &Columns,
+            &Rows
+            );
   
-  gST->ConOut->ClearScreen (gST->ConOut);
-  gST->ConOut->SetAttribute (gST->ConOut, EFI_TEXT_ATTR (EFI_LIGHTGRAY, EFI_BLACK));
-  gST->ConOut->SetCursorPosition (gST->ConOut, (Columns - 64) / 2, (Rows - Count - 16) / 2);
-  gST->ConOut->OutputString (gST->ConOut,
+  BannerCol = (Columns - 64) / 2;
+  BannerRow = (Rows - (Count + 16)) / 2;
+  ItemCol = (Columns - 30) / 2;
+  ItemRow = (Rows - (Count + 2)) / 2;
+  
+  ConOut->ClearScreen (ConOut);
+  ConOut->SetAttribute (ConOut, EFI_TEXT_ATTR (EFI_LIGHTGRAY, EFI_BLACK));
+  ConOut->SetCursorPosition (ConOut, BannerCol, BannerRow);
+  ConOut->OutputString (ConOut,
     L"  _____   ______  _____   __  ___ _____  _____   _____   _____  "
     );
-  gST->ConOut->SetCursorPosition (gST->ConOut, (Columns - 64) / 2, ((Rows - Count - 16) / 2) + 1);
-  gST->ConOut->OutputString (gST->ConOut,
+  ConOut->SetCursorPosition (ConOut, BannerCol, BannerRow + 1);
+  ConOut->OutputString (ConOut,
     L" / ___ \\ /   _  )/  __ \\ /  |/  //  ___)/ ___ \\ /  __ \\ /  __ \\ "
     );
-  gST->ConOut->SetCursorPosition (gST->ConOut, (Columns - 64) / 2, ((Rows - Count - 16) / 2) + 2);
-  gST->ConOut->OutputString (gST->ConOut,
+  ConOut->SetCursorPosition (ConOut, BannerCol, BannerRow + 2);
+  ConOut->OutputString (ConOut,
     L"/ /__/ //  /___//  (___//      //  /__ / /__/ //  /_/ //  (___/ "
     );
-  gST->ConOut->SetCursorPosition (gST->ConOut, (Columns - 64) / 2, ((Rows - Count - 16) / 2) + 3);
-  gST->ConOut->OutputString (gST->ConOut,
+  ConOut->SetCursorPosition (ConOut, BannerCol, BannerRow + 3);
+  ConOut->OutputString (ConOut,
     L"\\_____//__/     \\_____ /__/|__/ \\_____)\\_____//__/ \\__\\\\_____   "
     );
   if (Context->TitleSuffix != NULL) {
     Length = AsciiStrLen (Context->TitleSuffix);
-    gST->ConOut->SetAttribute (gST->ConOut, EFI_TEXT_ATTR (EFI_DARKGRAY, EFI_BLACK));
-    gST->ConOut->SetCursorPosition (gST->ConOut, Columns - (Length + 7), Rows - 1);
-    gST->ConOut->OutputString (gST->ConOut, L"N-D-K ");
+    ConOut->SetAttribute (ConOut, EFI_TEXT_ATTR (EFI_DARKGRAY, EFI_BLACK));
+    ConOut->SetCursorPosition (ConOut, Columns - (Length + 7), Rows - 1);
+    ConOut->OutputString (ConOut, L"N-D-K ");
     
     for (Index = 0; Index < Length; ++Index) {
       Code[0] = Context->TitleSuffix[Index];
-      gST->ConOut->OutputString (gST->ConOut, Code);
+      ConOut->OutputString (ConOut, Code);
     }
   }
   
@@ -861,22 +873,22 @@ OcShowSimpleBootMenu (
       }
       if (DefaultEntry == Index) {
         Selected = VisibleIndex;
-        gST->ConOut->SetAttribute (gST->ConOut, EFI_TEXT_ATTR (EFI_WHITE, EFI_BLACK));
+        ConOut->SetAttribute (ConOut, EFI_TEXT_ATTR (EFI_WHITE, EFI_BLACK));
       } else {
-        gST->ConOut->SetAttribute (gST->ConOut, EFI_TEXT_ATTR (EFI_LIGHTGRAY, EFI_BLACK));
+        ConOut->SetAttribute (ConOut, EFI_TEXT_ATTR (EFI_LIGHTGRAY, EFI_BLACK));
       }
-      gST->ConOut->SetCursorPosition (gST->ConOut, (Columns - 30) / 2, VisibleIndex + 2 + (Rows - Count - 6) / 2);
+      ConOut->SetCursorPosition (ConOut, ItemCol, ItemRow + VisibleIndex);
       Code[0] = OC_INPUT_STR[VisibleIndex];
       VisibleList[VisibleIndex] = Index;
-      gST->ConOut->OutputString (gST->ConOut, DefaultEntry == Index ? L"* " : L"  ");
-      gST->ConOut->OutputString (gST->ConOut, Code);
-      gST->ConOut->OutputString (gST->ConOut, L". ");
-      gST->ConOut->OutputString (gST->ConOut, BootEntries[Index].Name);
+      ConOut->OutputString (ConOut, DefaultEntry == Index ? L"* " : L"  ");
+      ConOut->OutputString (ConOut, Code);
+      ConOut->OutputString (ConOut, L". ");
+      ConOut->OutputString (ConOut, BootEntries[Index].Name);
       if (BootEntries[Index].IsExternal) {
-        gST->ConOut->OutputString (gST->ConOut, L" (external)");
+        ConOut->OutputString (ConOut, L" (external)");
       }
       if (BootEntries[Index].IsFolder) {
-        gST->ConOut->OutputString (gST->ConOut, L" (dmg)");
+        ConOut->OutputString (ConOut, L" (dmg)");
       }
       ++VisibleIndex;
     }
@@ -901,24 +913,24 @@ OcShowSimpleBootMenu (
         }
         TimeOutSeconds = 0;
         for (Index = 0; Index < VisibleIndex; ++Index) {
-          gST->ConOut->SetCursorPosition (gST->ConOut, (Columns - 30) / 2, Index + 2 + (Rows - Count - 6) / 2);
-          gST->ConOut->OutputString (gST->ConOut, L"                                        ");
+          ConOut->SetCursorPosition (ConOut, ItemCol, ItemRow + Index);
+          ConOut->OutputString (ConOut, L"                                        ");
         }
         break;
       } else if (KeyIndex == OC_INPUT_UP) {
         DefaultEntry = Selected > 0 ? VisibleList[Selected - 1] : VisibleList[VisibleIndex - 1];
         TimeOutSeconds = 0;
         for (Index = 0; Index < VisibleIndex; ++Index) {
-          gST->ConOut->SetCursorPosition (gST->ConOut, (Columns - 30) / 2, Index + 2 + (Rows - Count - 6) / 2);
-          gST->ConOut->OutputString (gST->ConOut, L"                                        ");
+          ConOut->SetCursorPosition (ConOut, ItemCol, ItemRow + Index);
+          ConOut->OutputString (ConOut, L"                                        ");
         }
         break;
       } else if (KeyIndex == OC_INPUT_DOWN) {
         DefaultEntry = Selected < (VisibleIndex - 1) ? VisibleList[Selected + 1] : 0;
         TimeOutSeconds = 0;
         for (Index = 0; Index < VisibleIndex; ++Index) {
-          gST->ConOut->SetCursorPosition (gST->ConOut, (Columns - 30) / 2, Index + 2 + (Rows - Count - 6) / 2);
-          gST->ConOut->OutputString (gST->ConOut, L"                                        ");
+          ConOut->SetCursorPosition (ConOut, ItemCol, ItemRow + Index);
+          ConOut->OutputString (ConOut, L"                                        ");
         }
         break;
       } else if (KeyIndex != OC_INPUT_INVALID && (UINTN)KeyIndex < VisibleIndex) {
