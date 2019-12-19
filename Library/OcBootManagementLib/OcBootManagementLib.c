@@ -1445,7 +1445,9 @@ OcShowSimplePasswordRequest (
   gRT->ResetSystem (EfiResetWarm, EFI_SUCCESS, 0, NULL);
   return EFI_ACCESS_DENIED;
 }
-
+//
+// This function generate and return entry ptr from last booted entry.
+//
 STATIC
 OC_BOOT_ENTRY *
 InternalGetLastBootedEntry (
@@ -1459,7 +1461,6 @@ InternalGetLastBootedEntry (
   UINTN                            UefiDevicePathSize;
   
   UefiDevicePath = NULL;
-
 
   Status = GetVariable2 (
              L"efi-boot-device-data",
@@ -1475,25 +1476,23 @@ InternalGetLastBootedEntry (
       FreePool (UefiDevicePath);
       return NULL;
     }
-    Entry->DevicePath = UefiDevicePath;
+    
     DevicePathText = ConvertDevicePathToText (UefiDevicePath, FALSE, FALSE);
     if (DevicePathText != NULL) {
       if (StrStr(DevicePathText, L"\\EFI\\Microsoft\\Boot") != NULL) {
         Entry->Type = OcBootWindows;
-        Entry->Name = AllocateCopyPool (L_STR_SIZE (L"Window"), L"Window");
       } else if (StrStr(DevicePathText, L"\\System\\Library\\CoreServices\\boot.efi") != NULL) {
         Entry->Type = OcBootApple;
-        Entry->Name = AllocateCopyPool (L_STR_SIZE (L"macOS"), L"macOS");
       } else {
         FreePool (DevicePathText);
         FreePool (UefiDevicePath);
         return NULL;
       }
+      Entry->DevicePath = UefiDevicePath;
       DEBUG ((DEBUG_INFO, "OCB: Found 1: %s\n", DevicePathText));
       FreePool (DevicePathText);
+      return Entry;
     }
-    
-    return Entry;
   }
   
   if (UefiDevicePath != NULL) {
