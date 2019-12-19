@@ -1446,6 +1446,63 @@ OcShowSimplePasswordRequest (
   return EFI_ACCESS_DENIED;
 }
 
+STATIC
+OC_BOOT_ENTRY *
+InternalGetLastBootedEntry (
+  VOID
+  )
+{
+  EFI_STATUS                       Status;
+  OC_BOOT_ENTRY                    *Entry;
+  CHAR16                           *DevicePathText;
+  EFI_DEVICE_PATH_PROTOCOL         *UefiDevicePath;
+  UINTN                            UefiDevicePathSize;
+  
+  UefiDevicePath = NULL;
+
+
+  Status = GetVariable2 (
+             L"efi-boot-device-data",
+             &gAppleBootVariableGuid,
+             (VOID **)&UefiDevicePath,
+             &UefiDevicePathSize
+             );
+
+  if (!EFI_ERROR (Status) && IsDevicePathValid (UefiDevicePath, UefiDevicePathSize)) {
+    Entry = AllocateZeroPool (sizeof (OC_BOOT_ENTRY));
+    if (Entry == NULL) {
+      DEBUG ((DEBUG_INFO, "OCB: Can't allocate memory for Fast Entry\n"));
+      FreePool (UefiDevicePath);
+      return NULL;
+    }
+    Entry->DevicePath = UefiDevicePath;
+    DevicePathText = ConvertDevicePathToText (UefiDevicePath, FALSE, FALSE);
+    if (DevicePathText != NULL) {
+      if (StrStr(DevicePathText, L"\\EFI\\Microsoft\\Boot") != NULL) {
+        Entry->Type = OcBootWindows;
+        Entry->Name = AllocateCopyPool (L_STR_SIZE (L"Window"), L"Window");
+      } else if (StrStr(DevicePathText, L"\\System\\Library\\CoreServices\\boot.efi") != NULL) {
+        Entry->Type = OcBootApple;
+        Entry->Name = AllocateCopyPool (L_STR_SIZE (L"macOS"), L"macOS");
+      } else {
+        FreePool (DevicePathText);
+        FreePool (UefiDevicePath);
+        return NULL;
+      }
+      DEBUG ((DEBUG_INFO, "OCB: Found 1: %s\n", DevicePathText));
+      FreePool (DevicePathText);
+    }
+    
+    return Entry;
+  }
+  
+  if (UefiDevicePath != NULL) {
+    FreePool (UefiDevicePath);
+  }
+  
+  return NULL;
+}
+
 EFI_STATUS
 OcRunSimpleBootPicker (
   IN OC_PICKER_CONTEXT  *Context
@@ -1458,6 +1515,8 @@ OcRunSimpleBootPicker (
   UINTN                       EntryCount;
   INTN                        DefaultEntry;
 
+  Chosen = NULL;
+  
   AppleBootPolicy = OcAppleBootPolicyInstallProtocol (FALSE);
   if (AppleBootPolicy == NULL) {
     DEBUG ((DEBUG_ERROR, "OCB: AppleBootPolicy locate failure\n"));
@@ -1478,68 +1537,89 @@ OcRunSimpleBootPicker (
       Context->PickerCommand = OcPickerDefault;
     }
   }
+  
+  if (Context->PickerCommand != OcPickerShowPicker
+    && Context->PickerCommand != OcPickerResetNvram) {
+    DEBUG ((DEBUG_INFO, "OCB: Checking for last booted entry....\n"));
+    Chosen = InternalGetLastBootedEntry();
+    if (Chosen !=NULL) {
+      if ((Chosen->Type == OcBootApple && Context->PickerCommand == OcPickerBootWindows)
+        || (Chosen->Type == OcBootWindows && Context->PickerCommand == OcPickerBootApple)) {
+        OcResetBootEntry (Chosen);
+        FreePool (Chosen);
+        Chosen = NULL;
+        DEBUG ((DEBUG_INFO, "OCB: Entry requested does not match!\n"));
+      } else {
+        DEBUG ((DEBUG_INFO, "OCB: Will boot from last booted entry!\n"));
+      }
+    }
+  }
 
   while (TRUE) {
-    DEBUG ((DEBUG_INFO, "OCB: Performing OcScanForBootEntries...\n"));
+    if (Chosen == NULL) {
+      DEBUG ((DEBUG_INFO, "OCB: Performing OcScanForBootEntries...\n"));
 
-    Status = OcScanForBootEntries (
-      AppleBootPolicy,
-      Context,
-      &Entries,
-      &EntryCount,
-      NULL,
-      TRUE
-      );
-
-    if (EFI_ERROR (Status)) {
-      DEBUG ((DEBUG_ERROR, "OCB: OcScanForBootEntries failure - %r\n", Status));
-      return Status;
-    }
-
-    if (EntryCount == 0) {
-      DEBUG ((DEBUG_WARN, "OCB: OcScanForBootEntries has no entries\n"));
-      return EFI_NOT_FOUND;
-    }
-
-    DEBUG ((
-      DEBUG_INFO,
-      "OCB: Performing OcShowSimpleBootMenu... %d\n",
-      Context->PollAppleHotKeys
-      ));
-
-    DefaultEntry = OcGetDefaultBootEntry (Context, Entries, EntryCount);
-
-    if (Context->PickerCommand == OcPickerShowPicker) {
-      Status = OcShowSimpleBootMenu (
+      Status = OcScanForBootEntries (
+        AppleBootPolicy,
         Context,
-        Entries,
-        EntryCount,
-        DefaultEntry,
-        &Chosen
+        &Entries,
+        &EntryCount,
+        NULL,
+        TRUE
         );
-    } else if (Context->PickerCommand == OcPickerResetNvram) {
-      return InternalSystemActionResetNvram ();
-    } else {
-      Chosen = &Entries[DefaultEntry];
-      Status = EFI_SUCCESS;
-    }
 
-    if (EFI_ERROR (Status) && Status != EFI_ABORTED) {
-      DEBUG ((DEBUG_ERROR, "OCB: OcShowSimpleBootMenu failed - %r\n", Status));
-      OcFreeBootEntries (Entries, EntryCount);
-      return Status;
-    }
+      if (EFI_ERROR (Status)) {
+        DEBUG ((DEBUG_ERROR, "OCB: OcScanForBootEntries failure - %r\n", Status));
+        return Status;
+      }
 
-    Context->TimeoutSeconds = 0;
+      if (EntryCount == 0) {
+        DEBUG ((DEBUG_WARN, "OCB: OcScanForBootEntries has no entries\n"));
+        return EFI_NOT_FOUND;
+      }
 
-    if (!EFI_ERROR (Status)) {
       DEBUG ((
         DEBUG_INFO,
-        "OCB: Should boot from %s (T:%d|F:%d)\n",
-        Chosen->Name,
-        Chosen->Type,
-        Chosen->IsFolder
+        "OCB: Performing OcShowSimpleBootMenu... %d\n",
+        Context->PollAppleHotKeys
         ));
+
+      DefaultEntry = OcGetDefaultBootEntry (Context, Entries, EntryCount);
+
+      if (Context->PickerCommand == OcPickerShowPicker) {
+        Status = OcShowSimpleBootMenu (
+          Context,
+          Entries,
+          EntryCount,
+          DefaultEntry,
+          &Chosen
+          );
+      } else if (Context->PickerCommand == OcPickerResetNvram) {
+        return InternalSystemActionResetNvram ();
+      } else {
+        Chosen = &Entries[DefaultEntry];
+        Status = EFI_SUCCESS;
+      }
+
+      if (EFI_ERROR (Status) && Status != EFI_ABORTED) {
+        DEBUG ((DEBUG_ERROR, "OCB: OcShowSimpleBootMenu failed - %r\n", Status));
+        OcFreeBootEntries (Entries, EntryCount);
+        return Status;
+      }
+
+      Context->TimeoutSeconds = 0;
+
+      if (!EFI_ERROR (Status)) {
+        DEBUG ((
+          DEBUG_INFO,
+          "OCB: Should boot from %s (T:%d|F:%d)\n",
+          Chosen->Name,
+          Chosen->Type,
+          Chosen->IsFolder
+          ));
+      }
+    } else {
+      Status = EFI_SUCCESS;
     }
 
     if (!EFI_ERROR (Status)) {
@@ -1552,7 +1632,14 @@ OcRunSimpleBootPicker (
 
       gBS->Stall (5000000);
     }
-
-    OcFreeBootEntries (Entries, EntryCount);
+    
+    if (Chosen != NULL){
+      OcResetBootEntry (Chosen);
+      FreePool (Chosen);
+    }
+    
+    if (Entries != NULL) {
+      OcFreeBootEntries (Entries, EntryCount);
+    }
   }
 }
