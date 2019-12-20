@@ -798,6 +798,8 @@ OcShowSimpleBootMenu (
   OUT OC_BOOT_ENTRY               **ChosenBootEntry
   )
 {
+  EFI_STATUS                      Status;
+  EFI_TIME                        DateTime;
   EFI_SIMPLE_TEXT_OUTPUT_PROTOCOL *ConOut;
   EFI_SIMPLE_TEXT_OUTPUT_MODE     SavedConsoleMode;
   UINTN                           Index;
@@ -818,6 +820,7 @@ OcShowSimpleBootMenu (
   CHAR16                          *String;
   UINTN                           MaxStrWidth;
   UINTN                           StrWidth;
+  CHAR16                          DateStr[11];
   
   Code[1] = '\0';
   ShowAll = FALSE;
@@ -863,12 +866,20 @@ OcShowSimpleBootMenu (
   ConOut->OutputString (ConOut,
     L"\\_____//__/     \\_____ /__/|__/ \\_____)\\_____//__/ \\__\\\\_____   "
     );
+  
+  ConOut->SetAttribute (ConOut, EFI_TEXT_ATTR (EFI_DARKGRAY, EFI_BLACK));
+  
+  Status = gRT->GetTime (&DateTime, NULL);
+  if (!EFI_ERROR (Status)) {
+    ConOut->SetCursorPosition (ConOut, 1, Rows - 1);
+    UnicodeSPrint (DateStr, sizeof (DateStr), L"%02u/%02u/%04u", DateTime.Month, DateTime.Day, DateTime.Year);
+    ConOut->OutputString (ConOut, DateStr);
+  }
+  
   if (Context->TitleSuffix != NULL) {
     Length = AsciiStrLen (Context->TitleSuffix);
-    ConOut->SetAttribute (ConOut, EFI_TEXT_ATTR (EFI_DARKGRAY, EFI_BLACK));
     ConOut->SetCursorPosition (ConOut, Columns - (Length + 7), Rows - 1);
     ConOut->OutputString (ConOut, L"N-D-K ");
-    
     for (Index = 0; Index < Length; ++Index) {
       Code[0] = Context->TitleSuffix[Index];
       ConOut->OutputString (ConOut, Code);
