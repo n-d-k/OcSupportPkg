@@ -790,212 +790,6 @@ OcIsAppleHibernateWake (
 }
 
 EFI_STATUS
-OcShowSimpleBootMenu (
-  IN OC_PICKER_CONTEXT            *Context,
-  IN OC_BOOT_ENTRY                *BootEntries,
-  IN UINTN                        Count,
-  IN UINTN                        DefaultEntry,
-  OUT OC_BOOT_ENTRY               **ChosenBootEntry
-  )
-{
-  EFI_STATUS                      Status;
-  EFI_TIME                        DateTime;
-  EFI_SIMPLE_TEXT_OUTPUT_PROTOCOL *ConOut;
-  EFI_SIMPLE_TEXT_OUTPUT_MODE     SavedConsoleMode;
-  UINTN                           Index;
-  UINTN                           Length;
-  INTN                            KeyIndex;
-  CHAR16                          Code[2];
-  UINT32                          TimeOutSeconds;
-  UINTN                           Columns;
-  UINTN                           Rows;
-  UINTN                           VisibleList[Count];
-  UINTN                           VisibleIndex;
-  BOOLEAN                         ShowAll;
-  UINTN                           Selected;
-  UINTN                           BannerCol;
-  UINTN                           BannerRow;
-  UINTN                           ItemCol;
-  UINTN                           ItemRow;
-  CHAR16                          *String;
-  UINTN                           MaxStrWidth;
-  UINTN                           StrWidth;
-  CHAR16                          DateStr[11];
-  
-  Code[1] = '\0';
-  ShowAll = FALSE;
-  ConOut = gST->ConOut;
-  CopyMem (&SavedConsoleMode, ConOut->Mode, sizeof (SavedConsoleMode));
-
-  TimeOutSeconds = Context->TimeoutSeconds;
-  
-  MaxStrWidth = 0;
-  for (Index = 0; Index < MIN (Count, OC_INPUT_MAX); ++Index) {
-    StrWidth = UnicodeStringDisplayLength (BootEntries[Index].Name);
-    MaxStrWidth = MaxStrWidth > StrWidth ? MaxStrWidth : StrWidth;
-  }
-  
-  ConOut->QueryMode (
-            ConOut,
-            SavedConsoleMode.Mode,
-            &Columns,
-            &Rows
-            );
-  
-  MaxStrWidth = MaxStrWidth + 10;
-  BannerCol = (Columns - 64) / 2;
-  BannerRow = (Rows - (Count + 16)) / 2;
-  ItemCol = (Columns - MaxStrWidth) / 2;
-  ItemRow = (Rows - (Count + 2)) / 2;
-  
-  ConOut->ClearScreen (ConOut);
-  ConOut->SetAttribute (ConOut, EFI_TEXT_ATTR (EFI_LIGHTGRAY, EFI_BLACK));
-  ConOut->SetCursorPosition (ConOut, BannerCol, BannerRow);
-  ConOut->OutputString (ConOut,
-    L"  _____   ______  _____   __  ___ _____  _____   _____   _____  "
-    );
-  ConOut->SetCursorPosition (ConOut, BannerCol, BannerRow + 1);
-  ConOut->OutputString (ConOut,
-    L" / ___ \\ /   _  )/  __ \\ /  |/  //  ___)/ ___ \\ /  __ \\ /  __ \\ "
-    );
-  ConOut->SetCursorPosition (ConOut, BannerCol, BannerRow + 2);
-  ConOut->OutputString (ConOut,
-    L"/ /__/ //  /___//  (___//      //  /__ / /__/ //  /_/ //  (___/ "
-    );
-  ConOut->SetCursorPosition (ConOut, BannerCol, BannerRow + 3);
-  ConOut->OutputString (ConOut,
-    L"\\_____//__/     \\_____ /__/|__/ \\_____)\\_____//__/ \\__\\\\_____   "
-    );
-  
-  ConOut->SetAttribute (ConOut, EFI_TEXT_ATTR (EFI_DARKGRAY, EFI_BLACK));
-  
-  Status = gRT->GetTime (&DateTime, NULL);
-  if (!EFI_ERROR (Status)) {
-    ConOut->SetCursorPosition (ConOut, 1, Rows - 1);
-    UnicodeSPrint (DateStr, sizeof (DateStr), L"%02u/%02u/%04u", DateTime.Month, DateTime.Day, DateTime.Year);
-    ConOut->OutputString (ConOut, DateStr);
-  }
-  
-  if (Context->TitleSuffix != NULL) {
-    Length = AsciiStrLen (Context->TitleSuffix);
-    ConOut->SetCursorPosition (ConOut, Columns - (Length + 7), Rows - 1);
-    ConOut->OutputString (ConOut, L"N-D-K ");
-    for (Index = 0; Index < Length; ++Index) {
-      Code[0] = Context->TitleSuffix[Index];
-      ConOut->OutputString (ConOut, Code);
-    }
-  }
-  
-  while (TRUE) {
-    VisibleIndex = 0;
-    for (Index = 0; Index < MIN (Count, OC_INPUT_MAX); ++Index) {
-      if ((BootEntries[Index].Hidden && !ShowAll)
-          || (BootEntries[Index].Type == OcBootSystem && !ShowAll)) {
-        continue;
-      }
-      if (DefaultEntry == Index) {
-        Selected = VisibleIndex;
-        ConOut->SetAttribute (ConOut, EFI_TEXT_ATTR (EFI_WHITE, EFI_BLACK));
-      } else {
-        ConOut->SetAttribute (ConOut, EFI_TEXT_ATTR (EFI_LIGHTGRAY, EFI_BLACK));
-      }
-      ConOut->SetCursorPosition (ConOut, ItemCol, ItemRow + VisibleIndex);
-      Code[0] = OC_INPUT_STR[VisibleIndex];
-      VisibleList[VisibleIndex] = Index;
-      ConOut->OutputString (ConOut, DefaultEntry == Index ? L"* " : L"  ");
-      ConOut->OutputString (ConOut, Code);
-      ConOut->OutputString (ConOut, L". ");
-      ConOut->OutputString (ConOut, BootEntries[Index].Name);
-      if (BootEntries[Index].IsExternal) {
-        ConOut->OutputString (ConOut, L" (ext)");
-      }
-      if (BootEntries[Index].IsFolder) {
-        ConOut->OutputString (ConOut, L" (dmg)");
-      }
-      ++VisibleIndex;
-    }
-
-    while (TRUE) {
-      if (Context->PollAppleHotKeys) {
-        KeyIndex = OcWaitForAppleKeyIndex (Context, TimeOutSeconds);
-      } else {
-        KeyIndex = WaitForKeyIndex (TimeOutSeconds);
-      }
-      if (KeyIndex == OC_INPUT_TIMEOUT || KeyIndex == OC_INPUT_RETURN) {
-        *ChosenBootEntry = &BootEntries[DefaultEntry];
-        ConOut->EnableCursor      (ConOut, SavedConsoleMode.CursorVisible);
-        ConOut->SetCursorPosition (ConOut, SavedConsoleMode.CursorColumn, SavedConsoleMode.CursorRow);
-        ConOut->SetAttribute      (ConOut, SavedConsoleMode.Attribute);
-        return EFI_SUCCESS;
-      } else if (KeyIndex == OC_INPUT_ABORTED) {
-        TimeOutSeconds = 0;
-        break;
-      } else if (KeyIndex == OC_INPUT_SPACEBAR) {
-        ShowAll = !ShowAll;
-        while ((BootEntries[DefaultEntry].Hidden && !ShowAll && DefaultEntry > 0)
-               || (BootEntries[DefaultEntry].Type == OcBootSystem && !ShowAll && DefaultEntry > 0)) {
-          --DefaultEntry;
-        }
-        TimeOutSeconds = 0;
-        String = AllocateZeroPool (MaxStrWidth * sizeof (CHAR16));
-        ASSERT (String != NULL);
-        for (Index = 0; Index < MaxStrWidth - 1; ++Index) {
-          String[Index] = 0x20;
-        }
-        for (Index = 0; Index < VisibleIndex; ++Index) {
-          ConOut->SetCursorPosition (ConOut, ItemCol, ItemRow + Index);
-          ConOut->OutputString (ConOut, String);
-        }
-        FreePool (String);
-        break;
-      } else if (KeyIndex == OC_INPUT_UP) {
-        DefaultEntry = Selected > 0 ? VisibleList[Selected - 1] : VisibleList[VisibleIndex - 1];
-        TimeOutSeconds = 0;
-        String = AllocateZeroPool (MaxStrWidth * sizeof (CHAR16));
-        ASSERT (String != NULL);
-        for (Index = 0; Index < MaxStrWidth - 1; ++Index) {
-          String[Index] = 0x20;
-        }
-        for (Index = 0; Index < VisibleIndex; ++Index) {
-          ConOut->SetCursorPosition (ConOut, ItemCol, ItemRow + Index);
-          ConOut->OutputString (ConOut, String);
-        }
-        FreePool (String);
-        break;
-      } else if (KeyIndex == OC_INPUT_DOWN) {
-        DefaultEntry = Selected < (VisibleIndex - 1) ? VisibleList[Selected + 1] : 0;
-        TimeOutSeconds = 0;
-        String = AllocateZeroPool (MaxStrWidth * sizeof (CHAR16));
-        ASSERT (String != NULL);
-        for (Index = 0; Index < MaxStrWidth - 1; ++Index) {
-          String[Index] = 0x20;
-        }
-        for (Index = 0; Index < VisibleIndex; ++Index) {
-          ConOut->SetCursorPosition (ConOut, ItemCol, ItemRow + Index);
-          ConOut->OutputString (ConOut, String);
-        }
-        FreePool (String);
-        break;
-      } else if (KeyIndex != OC_INPUT_INVALID && (UINTN)KeyIndex < VisibleIndex) {
-        ASSERT (KeyIndex >= 0);
-        *ChosenBootEntry = &BootEntries[VisibleList[KeyIndex]];
-        ConOut->EnableCursor      (ConOut, SavedConsoleMode.CursorVisible);
-        ConOut->SetCursorPosition (ConOut, SavedConsoleMode.CursorColumn, SavedConsoleMode.CursorRow);
-        ConOut->SetAttribute      (ConOut, SavedConsoleMode.Attribute);
-        return EFI_SUCCESS;
-      }
-
-      if (TimeOutSeconds > 0) {
-        TimeOutSeconds = 0;
-        break;
-      }
-    }
-  }
-
-  ASSERT (FALSE);
-}
-
-EFI_STATUS
 OcLoadBootEntry (
   IN  APPLE_BOOT_POLICY_PROTOCOL  *BootPolicy,
   IN  OC_PICKER_CONTEXT           *Context,
@@ -1291,6 +1085,22 @@ OcWaitForAppleKeyIndex (
     if (OcKeyMapHasKey (Keys, NumKeys, AppleHidUsbKbUsageKeyEscape)
      || OcKeyMapHasKey (Keys, NumKeys, AppleHidUsbKbUsageKeyZero)) {
       return OC_INPUT_ABORTED;
+    }
+    
+    if (OcKeyMapHasKey (Keys, NumKeys, AppleHidUsbKbUsageKeySpaceBar)) {
+      return OC_INPUT_SPACEBAR;
+    }
+    
+    if (OcKeyMapHasKey (Keys, NumKeys, AppleHidUsbKbUsageKeyEnter)) {
+      return OC_INPUT_RETURN;
+    }
+    
+    if (OcKeyMapHasKey (Keys, NumKeys, AppleHidUsbKbUsageKeyUpArrow)) {
+      return OC_INPUT_UP;
+    }
+    
+    if (OcKeyMapHasKey (Keys, NumKeys, AppleHidUsbKbUsageKeyDownArrow)) {
+      return OC_INPUT_DOWN;
     }
     //
     // Check exact match on index strokes.
