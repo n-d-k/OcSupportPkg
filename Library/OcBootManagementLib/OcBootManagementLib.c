@@ -432,6 +432,7 @@ OcScanForBootEntries (
           if (!StrCmp (DevicePathText, PathName)) {
             FreePool (Entries[Index1].Name);
             Entries[Index1].Name = AsciiStrCopyToUnicode (Context->CustomEntries[Index].Name, 0);
+            Entries[Index1].Hidden = Context->CustomEntries[Index].Hidden;
             Modified[Index1] = TRUE;
             FreePool (Entries[EntryIndex].Name);
             FreePool (PathName);
