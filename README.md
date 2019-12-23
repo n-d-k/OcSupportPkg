@@ -12,7 +12,10 @@ Additional features implemented by this fork
 - Boot entry can be switched and selected with Up/Down arrow and Enter keys.
 - Fixed the unmatched 1st and 2nd stages boot Apple logo (* To ensure a match, set Misc->Boot->Resolution to match with one in macOS preferences, and to better boot menu text visibility for 4k+ display, set Misc->Boot->ConsoleMode to Max).
 - macOS Recovery/Tools Entries are hidden by default, use Spacebar in Boot Menu as a toggle on/off to show/hide these entries.
-- Individual custom entry can now be set hidden using Misc->Entries->Item 0->Hidden. (Boolean)
+- Individual custom entry can now be set hidden using Misc->Entries->Item 0->Hidden. (Boolean).
+- Booter Quirks only apply to macOS.
+- Custom entries are now listed first in picker menu and by the orders they are appeared in Misc->Boot->Entries, before all other entries.
+- Improved Hotkeys successful rate.
 
 
 OcSupportPkg

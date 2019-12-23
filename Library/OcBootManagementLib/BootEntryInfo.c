@@ -505,6 +505,8 @@ InternalFillValidBootEntries (
   VOID                 *Reserved;
   EFI_FILE_PROTOCOL    *RecoveryRoot;
   EFI_HANDLE           RecoveryDeviceHandle;
+  UINTN                Index;
+  BOOLEAN              IsDuplicated;
 
   while (TRUE) {
     DevicePath = GetNextDevicePathInstance (&DevicePathWalker, &DevPathSize);
@@ -546,19 +548,29 @@ InternalFillValidBootEntries (
       }
     }
 
-    DEBUG ((
-      DEBUG_BULK_INFO,
-      "OCB: Adding entry %u, external - %d, skip recovery - %d\n",
-      (UINT32) EntryIndex,
-      DevPathScanInfo->IsExternal,
-      DevPathScanInfo->SkipRecovery
-      ));
-    DebugPrintDevicePath (DEBUG_BULK_INFO, "DevicePath", DevicePath);
-
-    Entries[EntryIndex].DevicePath = DevicePath;
-    Entries[EntryIndex].IsExternal = DevPathScanInfo->IsExternal;
-    InternalSetBootEntryFlags (&Entries[EntryIndex]);
-    ++EntryIndex;
+    IsDuplicated = FALSE;
+    for (Index = 0; Index < MIN (Context->AbsoluteEntryCount, EntryIndex); ++Index) {
+      if (CompareMem (Entries[Index].DevicePath, DevicePath, DevPathScanInfo->HdPrefixSize) == 0) {
+        IsDuplicated = TRUE;
+        break;
+      }
+    }
+    
+    if (!IsDuplicated) {
+      DEBUG ((
+        DEBUG_BULK_INFO,
+        "OCB: Adding entry %u, external - %d, skip recovery - %d\n",
+        (UINT32) EntryIndex,
+        DevPathScanInfo->IsExternal,
+        DevPathScanInfo->SkipRecovery
+        ));
+      DebugPrintDevicePath (DEBUG_BULK_INFO, "DevicePath", DevicePath);
+      
+      Entries[EntryIndex].DevicePath = DevicePath;
+      Entries[EntryIndex].IsExternal = DevPathScanInfo->IsExternal;
+      InternalSetBootEntryFlags (&Entries[EntryIndex]);
+      ++EntryIndex;
+    }
 
     if (DevPathScanInfo->SkipRecovery) {
       continue;

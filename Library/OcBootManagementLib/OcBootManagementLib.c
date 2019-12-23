@@ -209,6 +209,93 @@ InternalSystemActionResetNvram (
   return EFI_DEVICE_ERROR;
 }
 
+STATIC
+UINTN
+internalFillCustomBootEntries (
+  IN     OC_PICKER_CONTEXT         *Context,
+  IN OUT OC_BOOT_ENTRY             *Entries,
+  IN     UINTN                     EntryIndex,
+     OUT BOOLEAN                   BootWindowsFound
+  )
+{
+  UINTN                            Index;
+  CHAR16                           *PathName;
+  CONST FILEPATH_DEVICE_PATH       *FilePath;
+  
+  for (Index = 0; Index < Context->AbsoluteEntryCount; ++Index) {
+    Entries[EntryIndex].Name = AsciiStrCopyToUnicode (Context->CustomEntries[Index].Name, 0);
+    PathName                 = AsciiStrCopyToUnicode (Context->CustomEntries[Index].Path, 0);
+    if (Entries[EntryIndex].Name == NULL || PathName == NULL) {
+      OcFreeBootEntries (Entries, EntryIndex + 1);
+      return EFI_OUT_OF_RESOURCES;
+    }
+    // Properly re-assign the boot type for custom entries according the pathname instead of using OcBootCustom.
+
+    if (StrStr(PathName, L"\\EFI\\Microsoft\\Boot") != NULL) {
+      Entries[EntryIndex].Type = OcBootWindows;
+    } else if (StrStr(PathName, L"\\System\\Library\\CoreServices\\boot.efi") != NULL) {
+      Entries[EntryIndex].Type = OcBootApple;
+    } else {
+      Entries[EntryIndex].Type = OcBootCustom;
+    }
+    //
+    // Check for possible Windows entry in custom entries if not yet found with auto scan when Windows boot
+    // was called with hotkey W, Will skip the rest if find one here.
+    //
+    if (Context->PickerCommand == OcPickerBootWindows && Entries[EntryIndex].Type == OcBootWindows) {
+        Index = Context->AbsoluteEntryCount;
+        BootWindowsFound = TRUE;
+    }
+    
+    Entries[EntryIndex].DevicePath = ConvertTextToDevicePath (PathName);
+    FreePool (PathName);
+    if (Entries[EntryIndex].DevicePath == NULL) {
+      FreePool (Entries[EntryIndex].Name);
+      continue;
+    }
+
+    FilePath = (FILEPATH_DEVICE_PATH *)(
+                 FindDevicePathNodeWithType (
+                   Entries[EntryIndex].DevicePath,
+                   MEDIA_DEVICE_PATH,
+                   MEDIA_FILEPATH_DP
+                   )
+                 );
+    if (FilePath == NULL) {
+      FreePool (Entries[EntryIndex].Name);
+      FreePool (Entries[EntryIndex].DevicePath);
+      continue;
+    }
+
+    Entries[EntryIndex].PathName = AllocateCopyPool (
+                                     OcFileDevicePathNameSize (FilePath),
+                                     FilePath->PathName
+                                     );
+    if (Entries[EntryIndex].PathName == NULL) {
+      FreePool (Entries[EntryIndex].Name);
+      FreePool (Entries[EntryIndex].DevicePath);
+      continue;
+    }
+    
+    Entries[EntryIndex].LoadOptionsSize = (UINT32) AsciiStrLen (Context->CustomEntries[Index].Arguments);
+    if (Entries[EntryIndex].LoadOptionsSize > 0) {
+      Entries[EntryIndex].LoadOptions = AllocateCopyPool (
+        Entries[EntryIndex].LoadOptionsSize + 1,
+        Context->CustomEntries[Index].Arguments
+        );
+      if (Entries[EntryIndex].LoadOptions == NULL) {
+        Entries[EntryIndex].LoadOptionsSize = 0;
+      }
+    }
+    
+    Entries[EntryIndex].Hidden = Context->CustomEntries[Index].Hidden;
+    
+    ++EntryIndex;
+  }
+  
+  return EntryIndex;
+}
+
 EFI_STATUS
 OcScanForBootEntries (
   IN  APPLE_BOOT_POLICY_PROTOCOL  *BootPolicy,
@@ -235,11 +322,7 @@ OcScanForBootEntries (
   INTERNAL_DEV_PATH_SCAN_INFO      *DevPathScanInfo;
   INTERNAL_DEV_PATH_SCAN_INFO      *DevPathScanInfos;
   EFI_DEVICE_PATH_PROTOCOL         *DevicePathWalker;
-  CONST FILEPATH_DEVICE_PATH       *FilePath;
-  UINTN                            Index1;
-  BOOLEAN                          SkipCustomEntry;
   BOOLEAN                          BootWindowsFound;
-  BOOLEAN                          *Modified;
 
   Result = OcOverflowMulUN (Context->AllCustomEntryCount, sizeof (OC_BOOT_ENTRY), &EntriesSize);
   if (Result) {
@@ -334,173 +417,93 @@ OcScanForBootEntries (
     FreePool (DevPathScanInfos);
     return EFI_OUT_OF_RESOURCES;
   }
-
+  
+  BootWindowsFound = FALSE;
   EntryIndex = 0;
-  for (Index = 0; Index < NoHandles; ++Index) {
-    DevPathScanInfo = &DevPathScanInfos[Index];
+  
+  EntryIndex = internalFillCustomBootEntries (
+                 Context,
+                 Entries,
+                 EntryIndex,
+                 BootWindowsFound
+                 );
+  
+  if (Context->PickerCommand != OcPickerBootWindows || !BootWindowsFound) {
+    for (Index = 0; Index < NoHandles; ++Index) {
+      DevPathScanInfo = &DevPathScanInfos[Index];
 
-    DevicePathWalker = DevPathScanInfo->BootDevicePath;
-    if (DevicePathWalker == NULL) {
-      continue;
+      DevicePathWalker = DevPathScanInfo->BootDevicePath;
+      if (DevicePathWalker == NULL) {
+        continue;
+      }
+
+      EntryIndex = InternalFillValidBootEntries (
+                     BootPolicy,
+                     Context,
+                     DevPathScanInfo,
+                     DevicePathWalker,
+                     Entries,
+                     EntryIndex
+                     );
+
+      FreePool (DevPathScanInfo->BootDevicePath);
     }
 
-    EntryIndex = InternalFillValidBootEntries (
-      BootPolicy,
-      Context,
-      DevPathScanInfo,
-      DevicePathWalker,
-      Entries,
-      EntryIndex
-      );
+    FreePool (DevPathScanInfos);
+    
+    if (Describe) {
+      DEBUG ((DEBUG_INFO, "Scanning got %u entries\n", (UINT32) EntryIndex));
 
-    FreePool (DevPathScanInfo->BootDevicePath);
-  }
-
-  FreePool (DevPathScanInfos);
-  BootWindowsFound = FALSE;
-  if (Describe) {
-    DEBUG ((DEBUG_INFO, "Scanning got %u entries\n", (UINT32) EntryIndex));
-
-    for (Index = 0; Index < EntryIndex; ++Index) {
-      Status = OcDescribeBootEntry (BootPolicy, &Entries[Index]);
-      if (EFI_ERROR (Status)) {
-        break;
-      }
-      //
-      // Look for first Windows boot entry only if Windows boot was called via Hotkey W
-      //
-      if (Context->PickerCommand == OcPickerBootWindows && !BootWindowsFound) {
-        if (Entries[Index].Type == OcBootWindows) {
-          BootWindowsFound = TRUE;
+      for (Index = Context->AbsoluteEntryCount; Index < EntryIndex; ++Index) {
+        Status = OcDescribeBootEntry (BootPolicy, &Entries[Index]);
+        if (EFI_ERROR (Status)) {
+          break;
         }
-      }
-      
-      DEBUG_CODE_BEGIN ();
-      DEBUG ((
-        DEBUG_INFO,
-        "Entry %u is %s at %s (T:%d|F:%d)\n",
-        (UINT32) Index,
-        Entries[Index].Name,
-        Entries[Index].PathName,
-        Entries[Index].Type,
-        Entries[Index].IsFolder
-        ));
-
-      DevicePathText = ConvertDevicePathToText (Entries[Index].DevicePath, FALSE, FALSE);
-      if (DevicePathText != NULL) {
+        
+        DEBUG_CODE_BEGIN ();
         DEBUG ((
           DEBUG_INFO,
-          "Entry %u is %s at dp %s\n",
+          "Entry %u is %s at %s (T:%d|F:%d)\n",
           (UINT32) Index,
           Entries[Index].Name,
-          DevicePathText
+          Entries[Index].PathName,
+          Entries[Index].Type,
+          Entries[Index].IsFolder
           ));
-        FreePool (DevicePathText);
-      }
-      DEBUG_CODE_END ();
-    }
 
-    if (EFI_ERROR (Status)) {
-      OcFreeBootEntries (Entries, EntryIndex);
-      return Status;
+        DevicePathText = ConvertDevicePathToText (Entries[Index].DevicePath, FALSE, FALSE);
+        if (DevicePathText != NULL) {
+          DEBUG ((
+            DEBUG_INFO,
+            "Entry %u is %s at dp %s\n",
+            (UINT32) Index,
+            Entries[Index].Name,
+            DevicePathText
+            ));
+          FreePool (DevicePathText);
+        }
+        DEBUG_CODE_END ();
+      }
+
+      if (EFI_ERROR (Status)) {
+        OcFreeBootEntries (Entries, EntryIndex);
+        return Status;
+      }
     }
-  }
-  //
-  // Skip adding custom entries if Window boot hotkey W was called, and Windows boot entry was already found.
-  //
-  if (!BootWindowsFound) {
-    Modified = AllocateZeroPool (sizeof (BOOLEAN) * (EntryIndex + Context->AbsoluteEntryCount));
-    ASSERT (Modified != NULL);
-    for (Index = 0; Index < Context->AllCustomEntryCount; ++Index) {
+    
+    for (Index = Context->AbsoluteEntryCount; Index < Context->AllCustomEntryCount; ++Index) {
       Entries[EntryIndex].Name = AsciiStrCopyToUnicode (Context->CustomEntries[Index].Name, 0);
       PathName                 = AsciiStrCopyToUnicode (Context->CustomEntries[Index].Path, 0);
       if (Entries[EntryIndex].Name == NULL || PathName == NULL) {
         OcFreeBootEntries (Entries, EntryIndex + 1);
-        FreePool (Modified);
         return EFI_OUT_OF_RESOURCES;
       }
-
+      
       Entries[EntryIndex].Type = OcBootCustom;
+      Entries[EntryIndex].Hidden = TRUE;
 
-      if (Index < Context->AbsoluteEntryCount) {
-        SkipCustomEntry = FALSE;
-        for (Index1 = 0; Index1 < EntryIndex; ++Index1) {
-          if (Entries[Index1].Type == OcBootCustom || Modified[Index1]) {
-            continue;
-          }
-          DevicePathText = ConvertDevicePathToText (Entries[Index1].DevicePath, FALSE, FALSE);
-          if (!StrCmp (DevicePathText, PathName)) {
-            FreePool (Entries[Index1].Name);
-            Entries[Index1].Name = AsciiStrCopyToUnicode (Context->CustomEntries[Index].Name, 0);
-            Entries[Index1].Hidden = Context->CustomEntries[Index].Hidden;
-            Modified[Index1] = TRUE;
-            FreePool (Entries[EntryIndex].Name);
-            FreePool (PathName);
-            FreePool (DevicePathText);
-            SkipCustomEntry = TRUE;
-            break;
-          }
-          FreePool (DevicePathText);
-        }
-          
-        if (SkipCustomEntry) {
-          continue;
-        }
-        
-        // Properly re-assign the boot type for custom entries according the pathname instead of using OcBootCustom.
-
-        if (StrStr(PathName, L"\\EFI\\Microsoft\\Boot") != NULL) {
-          Entries[EntryIndex].Type = OcBootWindows;
-        } else if (StrStr(PathName, L"\\System\\Library\\CoreServices\\boot.efi") != NULL) {
-          Entries[EntryIndex].Type = OcBootApple;
-        } else {
-        //
-        // Additional Boot types may be populated here in the future.
-        //
-        }
-        
-        //
-        // Check for possible Windows entry in custom entries if not yet found with auto scan when Windows boot
-        // was called with hotkey W, Will skip the rest if find one here.
-        //
-        
-        if (Context->PickerCommand == OcPickerBootWindows && Entries[EntryIndex].Type == OcBootWindows) {
-            Index = Context->AllCustomEntryCount;
-        }
-          
-        Entries[EntryIndex].DevicePath = ConvertTextToDevicePath (PathName);
-        FreePool (PathName);
-        if (Entries[EntryIndex].DevicePath == NULL) {
-          FreePool (Entries[EntryIndex].Name);
-          continue;
-        }
-
-        FilePath = (FILEPATH_DEVICE_PATH *)(
-                     FindDevicePathNodeWithType (
-                       Entries[EntryIndex].DevicePath,
-                       MEDIA_DEVICE_PATH,
-                       MEDIA_FILEPATH_DP
-                       )
-                     );
-        if (FilePath == NULL) {
-          FreePool (Entries[EntryIndex].Name);
-          FreePool (Entries[EntryIndex].DevicePath);
-          continue;
-        }
-
-        Entries[EntryIndex].PathName = AllocateCopyPool (
-                                         OcFileDevicePathNameSize (FilePath),
-                                         FilePath->PathName
-                                         );
-        if (Entries[EntryIndex].PathName == NULL) {
-          FreePool (Entries[EntryIndex].Name);
-          FreePool (Entries[EntryIndex].DevicePath);
-          continue;
-        }
-      } else {
-        UnicodeUefiSlashes (PathName);
-        Entries[EntryIndex].PathName = PathName;
-      }
+      UnicodeUefiSlashes (PathName);
+      Entries[EntryIndex].PathName = PathName;
 
       Entries[EntryIndex].LoadOptionsSize = (UINT32) AsciiStrLen (Context->CustomEntries[Index].Arguments);
       if (Entries[EntryIndex].LoadOptionsSize > 0) {
@@ -517,23 +520,22 @@ OcScanForBootEntries (
       
       ++EntryIndex;
     }
-    FreePool (Modified);
-  }
 
-  if (Context->ShowNvramReset) {
-    Entries[EntryIndex].Name = AllocateCopyPool (
-                                 L_STR_SIZE (L"Reset NVRAM"),
-                                 L"Reset NVRAM"
-                                 );
-    if (Entries[EntryIndex].Name == NULL) {
-      OcFreeBootEntries (Entries, EntryIndex + 1);
-      return EFI_OUT_OF_RESOURCES;
+    if (Context->ShowNvramReset) {
+      Entries[EntryIndex].Name = AllocateCopyPool (
+                                   L_STR_SIZE (L"Reset NVRAM"),
+                                   L"Reset NVRAM"
+                                   );
+      if (Entries[EntryIndex].Name == NULL) {
+        OcFreeBootEntries (Entries, EntryIndex + 1);
+        return EFI_OUT_OF_RESOURCES;
+      }
+
+      Entries[EntryIndex].Type         = OcBootSystem;
+      Entries[EntryIndex].Hidden       = FALSE;
+      Entries[EntryIndex].SystemAction = InternalSystemActionResetNvram;
+      ++EntryIndex;
     }
-
-    Entries[EntryIndex].Type         = OcBootSystem;
-    Entries[EntryIndex].Hidden       = FALSE;
-    Entries[EntryIndex].SystemAction = InternalSystemActionResetNvram;
-    ++EntryIndex;
   }
 
   *BootEntries = Entries;
@@ -1359,6 +1361,8 @@ OcRunSimpleBootPicker (
     }
   }
   
+  OcLoadPickerHotKeys (Context);
+  
   if (Context->PickerCommand != OcPickerShowPicker
     && Context->PickerCommand != OcPickerResetNvram) {
     DEBUG ((DEBUG_INFO, "OCB: Checking for last booted entry....\n"));
@@ -1404,7 +1408,9 @@ OcRunSimpleBootPicker (
         "OCB: Performing OcShowSimpleBootMenu... %d\n",
         Context->PollAppleHotKeys
         ));
-
+      
+      OcLoadPickerHotKeys (Context);
+      
       DefaultEntry = OcGetDefaultBootEntry (Context, Entries, EntryCount);
 
       if (Context->PickerCommand == OcPickerShowPicker) {
