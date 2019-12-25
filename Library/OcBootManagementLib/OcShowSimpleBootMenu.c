@@ -214,7 +214,7 @@ OcShowSimpleBootMenu (
             &Rows
             );
   
-  MaxStrWidth = MaxStrWidth + 10;
+  MaxStrWidth = MaxStrWidth + 12;
   BannerCol = (Columns - 64) / 2;
   BannerRow = (Rows - (Count + 16)) / 2;
   ItemCol = (Columns - MaxStrWidth) / 2;
