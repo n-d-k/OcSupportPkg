@@ -1359,9 +1359,9 @@ OcRunSimpleBootPicker (
 
       Context->PickerCommand = OcPickerDefault;
     }
+  } else {
+    OcLoadPickerHotKeys (Context);
   }
-  
-  OcLoadPickerHotKeys (Context);
   
   if (Context->PickerCommand != OcPickerShowPicker
     && Context->PickerCommand != OcPickerResetNvram) {
@@ -1409,7 +1409,9 @@ OcRunSimpleBootPicker (
         Context->PollAppleHotKeys
         ));
       
-      OcLoadPickerHotKeys (Context);
+      if (Context->PickerCommand == OcPickerDefault) {
+        OcLoadPickerHotKeys (Context);
+      }
       
       DefaultEntry = OcGetDefaultBootEntry (Context, Entries, EntryCount);
 
