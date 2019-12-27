@@ -1304,8 +1304,10 @@ InternalGetLastBootedEntry (
     DevicePathText = ConvertDevicePathToText (UefiDevicePath, FALSE, FALSE);
     if (DevicePathText != NULL) {
       if (StrStr(DevicePathText, L"\\EFI\\Microsoft\\Boot") != NULL) {
+        Entry->Name = AllocateCopyPool (L_STR_SIZE (L"Last booted Windows"), L"Last booted Windows");
         Entry->Type = OcBootWindows;
       } else if (StrStr(DevicePathText, L"\\System\\Library\\CoreServices\\boot.efi") != NULL) {
+        Entry->Name = AllocateCopyPool (L_STR_SIZE (L"Last booted macOS"), L"Last booted macOS");
         Entry->Type = OcBootApple;
       } else {
         FreePool (DevicePathText);
