@@ -515,9 +515,6 @@ OcScanForBootEntries (
           Entries[EntryIndex].LoadOptionsSize = 0;
         }
       }
-      
-      Entries[EntryIndex].Hidden = Context->CustomEntries[Index].Hidden;
-      
       ++EntryIndex;
     }
 
@@ -1432,7 +1429,7 @@ OcRunSimpleBootPicker (
         Status = EFI_SUCCESS;
       }
 
-      if (EFI_ERROR (Status) && Status != EFI_ABORTED) {
+      if (EFI_ERROR (Status)) {
         DEBUG ((DEBUG_ERROR, "OCB: OcShowSimpleBootMenu failed - %r\n", Status));
         OcFreeBootEntries (Entries, EntryCount);
         return Status;
@@ -1467,6 +1464,7 @@ OcRunSimpleBootPicker (
     if (Chosen != NULL){
       OcResetBootEntry (Chosen);
       FreePool (Chosen);
+      Chosen = NULL;
     }
     
     if (Entries != NULL) {

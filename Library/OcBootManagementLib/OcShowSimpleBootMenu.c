@@ -22,6 +22,7 @@
 #include <Library/MemoryAllocationLib.h>
 #include <Library/OcAppleKeyMapLib.h>
 #include <Library/OcBootManagementLib.h>
+#include <Library/OcConsoleLib.h>
 #include <Library/OcStringLib.h>
 #include <Library/PrintLib.h>
 #include <Library/UefiBootServicesTableLib.h>
@@ -160,7 +161,7 @@ RestoreConsoleMode (
   
   gST->ConOut->SetAttribute (gST->ConOut, SavedConsoleMode.Attribute);
   gST->ConOut->EnableCursor (gST->ConOut, SavedConsoleMode.CursorVisible);
-  gST->ConOut->SetCursorPosition (gST->ConOut, SavedConsoleMode.CursorColumn, SavedConsoleMode.CursorRow);
+  gST->ConOut->SetCursorPosition (gST->ConOut, 0, 0);
   
 }
                
@@ -174,6 +175,7 @@ OcShowSimpleBootMenu (
   OUT OC_BOOT_ENTRY               **ChosenBootEntry
   )
 {
+  EFI_STATUS                      Status;
   EFI_SIMPLE_TEXT_OUTPUT_PROTOCOL *ConOut;
   EFI_SIMPLE_TEXT_OUTPUT_MODE     SavedConsoleMode;
   UINTN                           Index;
@@ -213,6 +215,11 @@ OcShowSimpleBootMenu (
             &Columns,
             &Rows
             );
+  
+  // This is necessary to correct console mode after returning from running any kind of tool.
+  Status = SetConsoleMode ((UINT32) Columns, (UINT32) Rows);
+  DEBUG ((DEBUG_INFO, "OCSSBM: Resetting console mode to %ux%u - %r\n", Columns, Rows, Status));
+  gST->ConOut->EnableCursor (gST->ConOut, FALSE);
   
   MaxStrWidth = MaxStrWidth + 12;
   BannerCol = (Columns - 64) / 2;
