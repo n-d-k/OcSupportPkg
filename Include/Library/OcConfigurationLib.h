@@ -124,7 +124,8 @@
   _(BOOLEAN                     , ProtectCsmRegion          ,     , FALSE  , ()) \
   _(BOOLEAN                     , ProvideCustomSlide        ,     , FALSE  , ()) \
   _(BOOLEAN                     , SetupVirtualMap           ,     , FALSE  , ()) \
-  _(BOOLEAN                     , ShrinkMemoryMap           ,     , FALSE  , ())
+  _(BOOLEAN                     , ShrinkMemoryMap           ,     , FALSE  , ()) \
+  _(BOOLEAN                     , SignalAppleOS             ,     , FALSE  , ())
   OC_DECLARE (OC_BOOTER_QUIRKS)
 
 ///
@@ -479,6 +480,7 @@ OC_DECLARE (OC_UEFI_INPUT)
   _(BOOLEAN                     , DeviceProperties            ,     , FALSE  , ()) \
   _(BOOLEAN                     , FirmwareVolume              ,     , FALSE  , ()) \
   _(BOOLEAN                     , HashServices                ,     , FALSE  , ()) \
+  _(BOOLEAN                     , OSInfo                      ,     , FALSE  , ()) \
   _(BOOLEAN                     , UnicodeCollation            ,     , FALSE  , ())
   OC_DECLARE (OC_UEFI_PROTOCOLS)
 
