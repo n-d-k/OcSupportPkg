@@ -40,6 +40,8 @@
 #include <Register/Intel/Msr/SandyBridgeMsr.h>
 #include <Register/Intel/Msr/NehalemMsr.h>
 
+#include "OcCpuInternals.h"
+
 //
 // Tolerance within which we consider two frequency values to be roughly
 // equivalent.
@@ -1374,13 +1376,8 @@ OcCpuScanProcessor (
   // Get processor signature and decode
   //
   if (Cpu->MaxId >= CPUID_VERSION_INFO) {
-    //
-    // Intel SDM requires us issuing CPUID 1 read during microcode
-    // version read, so let's do it here for simplicity.
-    //
-
     if (Cpu->Vendor[0] == CPUID_VENDOR_INTEL) {
-      AsmWriteMsr64 (MSR_IA32_BIOS_SIGN_ID, 0);
+      Cpu->MicrocodeRevision = AsmReadIntelMicrocodeRevision ();
     }
 
     AsmCpuid (
@@ -1390,10 +1387,6 @@ OcCpuScanProcessor (
       &Cpu->CpuidVerEcx.Uint32,
       &Cpu->CpuidVerEdx.Uint32
       );
-
-    if (Cpu->Vendor[0] == CPUID_VENDOR_INTEL) {
-      Cpu->MicrocodeRevision = AsmReadMsr32 (MSR_IA32_BIOS_SIGN_ID);
-    }
 
     Cpu->Signature = Cpu->CpuidVerEax.Uint32;
     Cpu->Stepping  = (UINT8) Cpu->CpuidVerEax.Bits.SteppingId;
@@ -1422,14 +1415,15 @@ OcCpuScanProcessor (
 
   DEBUG ((
     DEBUG_INFO,
-    "OCCPU: Signature %0X Stepping %0X Model %0X Family %0X Type %0X ExtModel %0X ExtFamily %0X\n",
+    "OCCPU: Signature %0X Stepping %0X Model %0X Family %0X Type %0X ExtModel %0X ExtFamily %0X uCode %0X\n",
     Cpu->Signature,
     Cpu->Stepping,
     Cpu->Model,
     Cpu->Family,
     Cpu->Type,
     Cpu->ExtModel,
-    Cpu->ExtFamily
+    Cpu->ExtFamily,
+    Cpu->MicrocodeRevision
     ));
     
   //
@@ -1482,6 +1476,26 @@ OcCpuScanProcessor (
   } else {
     DEBUG ((DEBUG_WARN, "Found unsupported CPU vendor: %0X", Cpu->Vendor[0]));
     return;
+  }
+
+  //
+  // SMBIOS Type4 ExternalClock field is assumed to have X*4 FSB frequency in MT/s.
+  // This value is cosmetics, but we still want to set it properly.
+  // Magic 4 value comes from 4 links in pretty much every modern Intel CPU.
+  // On modern CPUs this is now named Base clock (BCLK).
+  // Note, that this value was incorrect for most Macs since iMac12,x till iMac18,x inclusive.
+  // REF: https://github.com/acidanthera/bugtracker/issues/622#issuecomment-570811185
+  //
+  Cpu->ExternalClock = (UINT16) DivU64x32 (Cpu->FSBFrequency, 1000000);
+  //
+  // This is again cosmetics by errors in FSBFrequency calculation.
+  //
+  if (Cpu->ExternalClock >= 99 && Cpu->ExternalClock <= 101) {
+    Cpu->ExternalClock = 100;
+  } else if (Cpu->ExternalClock >= 132 && Cpu->ExternalClock <= 134) {
+    Cpu->ExternalClock = 133;
+  } else if (Cpu->ExternalClock >= 265 && Cpu->ExternalClock <= 267) {
+    Cpu->ExternalClock = 266;
   }
 
   DEBUG ((

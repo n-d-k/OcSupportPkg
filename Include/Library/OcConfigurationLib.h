@@ -353,7 +353,8 @@
   _(OC_NVRAM_ADD_MAP           , Add               ,     , OC_CONSTR2 (OC_NVRAM_ADD_MAP, _, __)        , OC_DESTR (OC_NVRAM_ADD_MAP)) \
   _(OC_NVRAM_BLOCK_MAP         , Block             ,     , OC_CONSTR2 (OC_NVRAM_BLOCK_MAP, _, __)      , OC_DESTR (OC_NVRAM_BLOCK_MAP)) \
   _(OC_NVRAM_LEGACY_MAP        , Legacy            ,     , OC_CONSTR2 (OC_NVRAM_LEGACY_MAP, _, __)     , OC_DESTR (OC_NVRAM_LEGACY_MAP)) \
-  _(BOOLEAN                    , UseLegacy         ,     , FALSE                                       , () )
+  _(BOOLEAN                    , UseLegacy         ,     , FALSE                                       , () ) \
+  _(BOOLEAN                    , WriteFlash        ,     , FALSE                                       , () )
   OC_DECLARE (OC_NVRAM_CONFIG)
 
 /**
@@ -366,7 +367,8 @@
   _(OC_STRING                   , SystemUuid         ,     , OC_STRING_CONSTR ("", _, __)                 , OC_DESTR (OC_STRING) ) \
   _(OC_STRING                   , Mlb                ,     , OC_STRING_CONSTR ("OPENCORE_MLB_SN11", _, __), OC_DESTR (OC_STRING) ) \
   _(UINT8                       , Rom                , [6] , {0}                                          , () )                   \
-  _(BOOLEAN                     , SpoofVendor        ,     , FALSE                                        , () )
+  _(BOOLEAN                     , SpoofVendor        ,     , FALSE                                        , () )                   \
+  _(BOOLEAN                     , SupportsCsm        ,     , FALSE                                        , () )
   OC_DECLARE (OC_PLATFORM_GENERIC_CONFIG)
 
 #define OC_PLATFORM_DATA_HUB_CONFIG_FIELDS(_, __) \

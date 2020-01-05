@@ -409,6 +409,7 @@ mNvramConfigurationSchema[] = {
   OC_SCHEMA_MAP_IN     ("Block",         OC_GLOBAL_CONFIG, Nvram.Block, &mNvramBlockSchema),
   OC_SCHEMA_BOOLEAN_IN ("LegacyEnable",  OC_GLOBAL_CONFIG, Nvram.UseLegacy),
   OC_SCHEMA_MAP_IN     ("LegacySchema",  OC_GLOBAL_CONFIG, Nvram.Legacy, &mNvramLegacySchema),
+  OC_SCHEMA_BOOLEAN_IN ("WriteFlash",    OC_GLOBAL_CONFIG, Nvram.WriteFlash),
 };
 
 //
@@ -439,6 +440,7 @@ mPlatformConfigurationGenericSchema[] = {
   OC_SCHEMA_STRING_IN  ("MLB",                OC_GLOBAL_CONFIG, PlatformInfo.Generic.Mlb),
   OC_SCHEMA_DATAF_IN   ("ROM",                OC_GLOBAL_CONFIG, PlatformInfo.Generic.Rom),
   OC_SCHEMA_BOOLEAN_IN ("SpoofVendor",        OC_GLOBAL_CONFIG, PlatformInfo.Generic.SpoofVendor),
+  OC_SCHEMA_BOOLEAN_IN ("SupportsCsm",        OC_GLOBAL_CONFIG, PlatformInfo.Generic.SupportsCsm),
   OC_SCHEMA_STRING_IN  ("SystemProductName",  OC_GLOBAL_CONFIG, PlatformInfo.Generic.SystemProductName),
   OC_SCHEMA_STRING_IN  ("SystemSerialNumber", OC_GLOBAL_CONFIG, PlatformInfo.Generic.SystemSerialNumber),
   OC_SCHEMA_STRING_IN  ("SystemUUID",         OC_GLOBAL_CONFIG, PlatformInfo.Generic.SystemUuid),
