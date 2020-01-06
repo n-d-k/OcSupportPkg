@@ -27,6 +27,7 @@
 
 #include <Library/BaseLib.h>
 #include <Library/BaseMemoryLib.h>
+#include <Library/OcCryptoLib.h>
 #include <Library/OcDebugLogLib.h>
 #include <Library/DevicePathLib.h>
 #include <Library/OcGuardLib.h>
@@ -580,7 +581,7 @@ OcActivateHibernateWake (
     //
     // Leave it as is.
     //
-    ZeroMem (Value, Size);
+    SecureZeroMem (Value, Size);
     FreePool (Value);
     DEBUG ((DEBUG_INFO, "OCB: Found legacy boot-switch-vars\n"));
     return EFI_SUCCESS;
@@ -629,7 +630,7 @@ OcActivateHibernateWake (
       DEBUG ((DEBUG_INFO, "OCB: Invalid boot-image variable\n"));
     }
 
-    ZeroMem (BootImagePath, Size);
+    SecureZeroMem (BootImagePath, Size);
     FreePool (BootImagePath);
   }
 
@@ -686,7 +687,7 @@ OcActivateHibernateWake (
         0,
         NULL
         );
-      ZeroMem (Value, Size);
+      SecureZeroMem (Value, Size);
       FreePool (Value);
     }
   }
@@ -715,7 +716,7 @@ OcActivateHibernateWake (
   // Erase RTC memory similarly to AppleBds.
   //
   if (HasHibernateInfoInRTC) {
-    ZeroMem (RtcRawVars, sizeof(AppleRTCHibernateVars));
+    SecureZeroMem (RtcRawVars, sizeof(AppleRTCHibernateVars));
     RtcVars.signature[0] = 'D';
     RtcVars.signature[1] = 'E';
     RtcVars.signature[2] = 'A';
@@ -1180,8 +1181,8 @@ OcShowSimplePasswordRequest (
         continue;
       } else if (EFI_ERROR (Status)) {
         gST->ConOut->ClearScreen (gST->ConOut);
-        ZeroMem (Password, PwIndex);
-        ZeroMem (&Key.UnicodeChar, sizeof (Key.UnicodeChar));
+        SecureZeroMem (Password, PwIndex);
+        SecureZeroMem (&Key.UnicodeChar, sizeof (Key.UnicodeChar));
 
         DEBUG ((DEBUG_ERROR, "Input device error\r\n"));
         return EFI_ABORTED;
@@ -1189,7 +1190,7 @@ OcShowSimplePasswordRequest (
 
       if (Key.ScanCode == SCAN_ESC) {
         gST->ConOut->ClearScreen (gST->ConOut);
-        ZeroMem (Password, PwIndex);
+        SecureZeroMem (Password, PwIndex);
         //
         // ESC aborts the input.
         //
@@ -1250,7 +1251,7 @@ OcShowSimplePasswordRequest (
                Privilege->Hash
                );
 
-    ZeroMem (Password, PwIndex);
+    SecureZeroMem (Password, PwIndex);
 
     if (Result) {
       gST->ConOut->ClearScreen (gST->ConOut);
