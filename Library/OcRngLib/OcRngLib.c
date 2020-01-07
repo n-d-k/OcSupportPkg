@@ -160,10 +160,10 @@ ChaChaRngGenerate (
 STATIC
 UINT64
 GetEntropyBits (
-  IN UINT64  Bits
+  IN UINTN  Bits
   )
 {
-  UINT64  Index;
+  UINTN   Index;
   UINT64  Entropy;
   UINT64  Tmp;
 
@@ -177,7 +177,7 @@ GetEntropyBits (
   for (Index = 0; Index < Bits; ++Index) {
     Tmp = AsmReadTsc () + AsmAddRngJitter (AsmReadTsc ());
     if ((Tmp & BIT0) != 0) {
-      Entropy |= (1U << Index);
+      Entropy |= LShiftU64 (1, Index);
     }
   }
 
@@ -208,7 +208,7 @@ OcRngLibConstructor (
   // CPUID. A value of 1 indicates that processor support RDRAND instruction.
   //
   AsmCpuid (1, 0, 0, &RegEcx.Uint32, 0);
-  mRng.HardwareRngAvailable = RegEcx.Bits.RDRAND;
+  mRng.HardwareRngAvailable = RegEcx.Bits.RDRAND != 0;
 
   //
   // Initialize PRNG.
