@@ -17,7 +17,9 @@
 
 #include <Uefi.h>
 #include <IndustryStandard/AppleBootArgs.h>
+#include <IndustryStandard/AppleHid.h>
 #include <Library/OcAppleBootPolicyLib.h>
+#include <Library/OcStringLib.h>
 #include <Protocol/LoadedImage.h>
 
 /**
@@ -628,17 +630,36 @@ OcLoadPickerHotKeys (
   );
 
 /**
+  Default index mapping macros.
+**/
+#define OC_INPUT_STR      "123456789ABCDEFGHIJKLMNOPQRSTUVXWZ"
+#define OC_INPUT_MAX      L_STR_LEN (OC_INPUT_STR)
+#define OC_INPUT_ABORTED  -1 ///< Esc or 0
+#define OC_INPUT_INVALID  -2 ///< Some other key
+#define OC_INPUT_TIMEOUT  -3 ///< Timeout
+#define OC_INPUT_UP       -4 ///< Arrow Up
+#define OC_INPUT_DOWN     -5 ///< Arrow Down
+#define OC_INPUT_RETURN   -6 ///< Enter/Return key
+#define OC_INPUT_SPACEBAR -7 ///< SpaceBar
+
+/**
   Obtains key index from user input.
 
   @param[in,out]  Context   Picker context.
   @param[in]      Time      Timeout to wait for.
+  @param[in,out]  Context      Picker context.
+  @param[in]      Time         Timeout to wait for.
+  @param[in,out]  LastKey      Last key press.
+  @param[in]      PollHotkeys  Poll key combinations.
 
   @returns key index [0, OC_INPUT_MAX), OC_INPUT_ABORTED, or OC_INPUT_INVALID.
 **/
 INTN
 OcWaitForAppleKeyIndex (
   IN OUT OC_PICKER_CONTEXT  *Context,
-  IN     UINTN              Timeout
+  IN     UINTN              Timeout,
+  IN OUT APPLE_KEY_CODE     *LastKey  OPTIONAL,
+  IN     BOOLEAN            PollHotkeys
   );
 
 /**

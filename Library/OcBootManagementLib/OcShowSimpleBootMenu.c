@@ -194,16 +194,18 @@ OcShowSimpleBootMenu (
   UINTN                           ItemRow;
   UINTN                           MaxStrWidth;
   UINTN                           StrWidth;
+  APPLE_KEY_CODE                  LastPolled;
   
-  Code[1] = '\0';
-  VisibleIndex = 0;
-  ShowAll = FALSE;
-  ConOut = gST->ConOut;
-  CopyMem (&SavedConsoleMode, ConOut->Mode, sizeof (SavedConsoleMode));
-
+  Code[1]        = '\0';
+  LastPolled     = 0;
+  VisibleIndex   = 0;
+  ShowAll        = FALSE;
+  MaxStrWidth    = 0;
   TimeOutSeconds = Context->TimeoutSeconds;
   
-  MaxStrWidth = 0;
+  ConOut = gST->ConOut;
+  CopyMem (&SavedConsoleMode, ConOut->Mode, sizeof (SavedConsoleMode));
+  
   for (Index = 0; Index < MIN (Count, OC_INPUT_MAX); ++Index) {
     StrWidth = UnicodeStringDisplayLength (BootEntries[Index].Name);
     MaxStrWidth = MaxStrWidth > StrWidth ? MaxStrWidth : StrWidth;
@@ -265,13 +267,8 @@ OcShowSimpleBootMenu (
     }
 
     while (TRUE) {
-      if (Context->PollAppleHotKeys) {
-        KeyIndex = OcWaitForAppleKeyIndex (Context, TimeOutSeconds > 0 ? 1 : 0);
-        --TimeOutSeconds;
-      } else {
-        KeyIndex = WaitForKeyIndex (TimeOutSeconds > 0 ? 1 : 0);
-        --TimeOutSeconds;
-      }
+      KeyIndex = OcWaitForAppleKeyIndex (Context, TimeOutSeconds > 0 ? 1 : 0, &LastPolled, Context->PollAppleHotKeys);
+      --TimeOutSeconds;
       if ((KeyIndex == OC_INPUT_TIMEOUT && TimeOutSeconds == 0) || KeyIndex == OC_INPUT_RETURN) {
         *ChosenBootEntry = &BootEntries[DefaultEntry];
         RestoreConsoleMode (SavedConsoleMode);
