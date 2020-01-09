@@ -645,12 +645,10 @@ OcLoadPickerHotKeys (
 /**
   Obtains key index from user input.
 
-  @param[in,out]  Context   Picker context.
-  @param[in]      Time      Timeout to wait for.
-  @param[in,out]  Context      Picker context.
-  @param[in]      Time         Timeout to wait for.
-  @param[in,out]  LastKey      Last key press.
-  @param[in]      PollHotkeys  Poll key combinations.
+  @param[in,out]  Context         Picker context.
+  @param[in]      Timeout         Timeout to wait for.
+  @param[in,out]  LastKey         Last key press, Optional
+  @param[in]      PollHotkeys Poll key combinations.
 
   @returns key index [0, OC_INPUT_MAX), OC_INPUT_ABORTED, or OC_INPUT_INVALID.
 **/
