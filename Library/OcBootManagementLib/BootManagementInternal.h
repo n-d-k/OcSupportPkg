@@ -114,4 +114,20 @@ InternalFillValidBootEntries (
   IN     UINTN                        EntryIndex
   );
 
+/**
+  Resets selected NVRAM variables and reboots the system.
+**/
+EFI_STATUS
+InternalSystemActionResetNvram (
+  VOID
+  );
+
+/**
+  This function generate and return entry ptr from last booted entry.
+**/
+OC_BOOT_ENTRY *
+InternalGetLastBootedEntry (
+  VOID
+  );
+
 #endif // BOOT_MANAGEMENET_INTERNAL_H

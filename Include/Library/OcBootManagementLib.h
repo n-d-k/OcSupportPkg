@@ -645,19 +645,19 @@ OcLoadPickerHotKeys (
 /**
   Obtains key index from user input.
 
-  @param[in,out]  Context         Picker context.
+  @param[in,out]  Context      Picker context.
   @param[in]      Timeout         Timeout to wait for.
-  @param[in,out]  LastKey         Last key press, Optional
-  @param[in]      PollHotkeys Poll key combinations.
+  @param[in]      PollHotkeys  Poll key combinations.
+  @param[in,out]  LastKey      Last key press, optional, optional
 
-  @returns key index [0, OC_INPUT_MAX), OC_INPUT_ABORTED, or OC_INPUT_INVALID.
+  @returns key index [0, OC_INPUT_MAX) or OC_INPUT_* value.
 **/
 INTN
 OcWaitForAppleKeyIndex (
   IN OUT OC_PICKER_CONTEXT  *Context,
   IN     UINTN              Timeout,
-  IN OUT APPLE_KEY_CODE     *LastKey  OPTIONAL,
-  IN     BOOLEAN            PollHotkeys
+  IN     BOOLEAN            PollHotkeys,
+  IN OUT APPLE_KEY_CODE     *LastKey     OPTIONAL
   );
 
 /**

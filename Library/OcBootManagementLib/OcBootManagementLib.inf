@@ -31,15 +31,18 @@
 #
 
 [Sources]
+  AppleHibernate.c
   BootArguments.c
   BootEntryInfo.c
+  BootEntryManagement.c
   BootManagementInternal.h
   DefaultEntryChoice.c
   DmgBootSupport.c
+  HotKeySupport.c
   PolicyManagement.c
   OcBootManagementLib.c
   VariableManagement.c
-  OcShowSimpleBootMenu.c
+  OcSimpleBootMenu.c
 
 [Packages]
   OcSupportPkg/OcSupportPkg.dec
