@@ -426,6 +426,10 @@ typedef struct {
   //
   BOOLEAN          ShowNvramReset;
   //
+  // Allow setting default boot option from boot menu.
+  //
+  BOOLEAN          AllowSetDefault;
+  //
   // Additional boot arguments for Apple loaders.
   //
   CHAR8            AppleBootArgs[BOOT_LINE_LENGTH];
@@ -565,7 +569,7 @@ OcShowSimplePasswordRequest (
   @param[in]  BootEntries      Described list of entries.
   @param[in]  Count            Positive number of boot entries.
   @param[in]  DefaultEntry     Default boot entry (DefaultEntry < Count).
-  @param[in]  ChosenBootEntry  Chosen boot entry from BootEntries on success.
+  @param[out] ChosenBootEntry  Chosen boot entry from BootEntries on success.
 
   @retval EFI_SUCCESS          Executed successfully and picked up an entry.
   @retval EFI_ABORTED          When the user chose to by pressing Esc or 0.
@@ -657,7 +661,8 @@ OcWaitForAppleKeyIndex (
   IN OUT OC_PICKER_CONTEXT  *Context,
   IN     UINTN              Timeout,
   IN     BOOLEAN            PollHotkeys,
-  IN OUT APPLE_KEY_CODE     *LastKey     OPTIONAL
+  IN OUT APPLE_KEY_CODE     *LastKey     OPTIONAL,
+     OUT BOOLEAN            *SetDefault  OPTIONAL
   );
 
 /**
@@ -820,6 +825,15 @@ OcAppendArgumentToCmd (
 VOID
 OcDeleteVariables (
   VOID
+  );
+
+/**
+  Set default entry .
+  @param[in]      *DevicePath         DevicePath.
+**/
+VOID
+OcSetDefaultBootEntry (
+  IN EFI_DEVICE_PATH_PROTOCOL   *DevicePath
   );
 
 #endif // OC_BOOT_MANAGEMENT_LIB_H

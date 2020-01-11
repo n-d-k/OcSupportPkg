@@ -217,7 +217,7 @@ OcRunSimpleBootPicker (
   
   if (Context->PickerCommand != OcPickerShowPicker
     && Context->PickerCommand != OcPickerResetNvram) {
-    DEBUG ((DEBUG_INFO, "OCB: Checking for last booted entry....\n"));
+    DEBUG ((DEBUG_INFO, "OCB: Checking Nvram for default or last booted entry....\n"));
     Chosen = InternalGetLastBootedEntry();
     if (Chosen !=NULL) {
       if ((Chosen->Type == OcBootApple && Context->PickerCommand == OcPickerBootWindows)
@@ -227,7 +227,7 @@ OcRunSimpleBootPicker (
         Chosen = NULL;
         DEBUG ((DEBUG_INFO, "OCB: Entry requested does not match!\n"));
       } else {
-        DEBUG ((DEBUG_INFO, "OCB: Will boot from last booted entry!\n"));
+        DEBUG ((DEBUG_INFO, "OCB: Will boot from default or last booted entry!\n"));
       }
     }
   }

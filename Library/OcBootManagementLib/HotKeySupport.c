@@ -126,8 +126,8 @@ OcWaitForAppleKeyIndex (
   IN OUT OC_PICKER_CONTEXT  *Context,
   IN     UINTN              Timeout,
   IN     BOOLEAN            PollHotkeys,
-  IN OUT APPLE_KEY_CODE     *LastKey  OPTIONAL
-  
+  IN OUT APPLE_KEY_CODE     *LastKey  OPTIONAL,
+     OUT BOOLEAN            *SetDefault  OPTIONAL
   )
 {
   EFI_STATUS                         Status;
@@ -146,6 +146,7 @@ OcWaitForAppleKeyIndex (
   BOOLEAN                            HasKeyV;
   BOOLEAN                            HasKeyMinus;
   BOOLEAN                            WantsZeroSlide;
+  BOOLEAN                            WantsDefault;
   UINT32                             CsrActiveConfig;
   UINT64                             CurrTime;
   UINT64                             EndTime;
@@ -165,7 +166,11 @@ OcWaitForAppleKeyIndex (
 
   CurrTime  = GetTimeInNanoSecond (GetPerformanceCounter ());
   EndTime   = CurrTime + Timeout * 1000000000ULL;
-
+  
+  if (SetDefault != NULL) {
+    *SetDefault = FALSE;
+  }
+  
   while (Timeout == 0 || CurrTime == 0 || CurrTime < EndTime) {
     NumKeys = ARRAY_SIZE (Keys);
     Status = KeyMap->GetKeyStrokes (
@@ -303,15 +308,20 @@ OcWaitForAppleKeyIndex (
     }
     
     //
+    // Default update is desired for Ctrl+Index and Ctrl+Enter.
+    //
+    WantsDefault = Modifiers != 0 && (Modifiers & ~(APPLE_MODIFIER_LEFT_CONTROL | APPLE_MODIFIER_RIGHT_CONTROL)) == 0;
+    
+    //
     // Ignore repeated key press.
     //
-    if (LastKey != NULL && Modifiers == 0 && NumKeys == 1 && *LastKey == Keys[0]) {
+    if (LastKey != NULL && (Modifiers == 0 || WantsDefault) && NumKeys == 1 && *LastKey == Keys[0]) {
       NumKeys = 0;
     }
     //
     // Check exact match on index strokes.
     //
-    if (Modifiers == 0 && NumKeys == 1) {
+    if ((Modifiers == 0 || WantsDefault) && NumKeys == 1) {
       if (LastKey != NULL) {
         *LastKey = Keys[0];
       }
@@ -323,6 +333,9 @@ OcWaitForAppleKeyIndex (
       if (Keys[0] == AppleHidUsbKbUsageKeyEnter
         || Keys[0] == AppleHidUsbKbUsageKeyReturn
         || Keys[0] == AppleHidUsbKbUsageKeyPadEnter) {
+        if (WantsDefault && SetDefault != NULL) {
+          *SetDefault = TRUE;
+        }
         return OC_INPUT_RETURN;
       }
       
@@ -337,6 +350,9 @@ OcWaitForAppleKeyIndex (
       STATIC_ASSERT (AppleHidUsbKbUsageKeyOne + 8 == AppleHidUsbKbUsageKeyNine, "Unexpected encoding");
       for (KeyCode = AppleHidUsbKbUsageKeyOne; KeyCode <= AppleHidUsbKbUsageKeyNine; ++KeyCode) {
         if (OcKeyMapHasKey (Keys, NumKeys, KeyCode)) {
+          if (WantsDefault && SetDefault != NULL) {
+            *SetDefault = TRUE;
+          }
           return (INTN) (KeyCode - AppleHidUsbKbUsageKeyOne);
         }
       }
@@ -344,6 +360,9 @@ OcWaitForAppleKeyIndex (
       STATIC_ASSERT (AppleHidUsbKbUsageKeyA + 25 == AppleHidUsbKbUsageKeyZ, "Unexpected encoding");
       for (KeyCode = AppleHidUsbKbUsageKeyA; KeyCode <= AppleHidUsbKbUsageKeyZ; ++KeyCode) {
         if (OcKeyMapHasKey (Keys, NumKeys, KeyCode)) {
+          if (WantsDefault && SetDefault != NULL) {
+            *SetDefault = TRUE;
+          }
           return (INTN) (KeyCode - AppleHidUsbKbUsageKeyA + 9);
         }
       }

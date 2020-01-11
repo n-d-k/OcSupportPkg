@@ -272,12 +272,11 @@ InternalGetBootEntryByDevicePath (
 
   for (Index = 0; Index < NumBootEntries; ++Index) {
     BootEntry = &BootEntries[Index];
-    if (BootEntry->Type == OcBootCustom || BootEntry->Type == OcBootSystem) {
+    if (BootEntry->DevicePath == NULL || BootEntry->Type == OcBootSystem) {
       continue;
     }
 
     OcDevicePath = BootEntry->DevicePath;
-    ASSERT (OcDevicePath != NULL);
 
     if ((GetDevicePathSize (OcDevicePath) - END_DEVICE_PATH_LENGTH) < RootDevicePathSize) {
       continue;
@@ -862,6 +861,15 @@ InternalReportLastBootedEntry (
   }
 }
 
+VOID
+OcSetDefaultBootEntry (
+  IN EFI_DEVICE_PATH_PROTOCOL   *DevicePath
+  )
+{
+  DEBUG ((DEBUG_INFO, "OCB: Setting Default boot entry!\n"));
+  InternalReportLastBootedEntry (DevicePath);
+}
+
 EFI_STATUS
 InternalLoadBootEntry (
   IN  APPLE_BOOT_POLICY_PROTOCOL  *BootPolicy,
@@ -986,7 +994,7 @@ InternalLoadBootEntry (
     //
     // Updating nvram efi-boot-device-data for Osx and Windows boot type.
     //
-    if (BootEntry->Type == OcBootApple || BootEntry->Type == OcBootWindows) {
+    if ((BootEntry->Type == OcBootApple && !Context->AllowSetDefault) || (BootEntry->Type == OcBootWindows && !Context->AllowSetDefault)) {
       InternalReportLastBootedEntry (DevicePath);
     }
     

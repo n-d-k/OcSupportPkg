@@ -194,6 +194,7 @@ OcShowSimpleBootMenu (
   UINTN                           MaxStrWidth;
   UINTN                           StrWidth;
   APPLE_KEY_CODE                  LastPolled;
+  BOOLEAN                         SetDefault;
   
   Code[1]        = '\0';
   LastPolled     = 0;
@@ -266,10 +267,17 @@ OcShowSimpleBootMenu (
     }
 
     while (TRUE) {
-      KeyIndex = OcWaitForAppleKeyIndex (Context, TimeOutSeconds > 0 ? 1 : 0, Context->PollAppleHotKeys, &LastPolled);
+      KeyIndex = OcWaitForAppleKeyIndex (Context, TimeOutSeconds > 0 ? 1 : 0, Context->PollAppleHotKeys, &LastPolled, &SetDefault);
       --TimeOutSeconds;
       if ((KeyIndex == OC_INPUT_TIMEOUT && TimeOutSeconds == 0) || KeyIndex == OC_INPUT_RETURN) {
         *ChosenBootEntry = &BootEntries[DefaultEntry];
+        SetDefault = BootEntries[DefaultEntry].DevicePath != NULL
+          && !BootEntries[DefaultEntry].Hidden
+          && Context->AllowSetDefault
+          && SetDefault;
+        if (SetDefault) {
+          OcSetDefaultBootEntry (BootEntries[DefaultEntry].DevicePath);
+        }
         RestoreConsoleMode (SavedConsoleMode);
         return EFI_SUCCESS;
       } else if (KeyIndex == OC_INPUT_ABORTED) {
@@ -294,6 +302,13 @@ OcShowSimpleBootMenu (
       } else if (KeyIndex != OC_INPUT_INVALID && (UINTN)KeyIndex < VisibleIndex) {
         ASSERT (KeyIndex >= 0);
         *ChosenBootEntry = &BootEntries[VisibleList[KeyIndex]];
+        SetDefault = BootEntries[VisibleList[KeyIndex]].DevicePath != NULL
+          && !BootEntries[VisibleList[KeyIndex]].Hidden
+          && Context->AllowSetDefault
+          && SetDefault;
+        if (SetDefault) {
+          OcSetDefaultBootEntry (BootEntries[VisibleList[KeyIndex]].DevicePath);
+        }
         RestoreConsoleMode (SavedConsoleMode);
         return EFI_SUCCESS;
       } else if (KeyIndex != OC_INPUT_TIMEOUT) {
