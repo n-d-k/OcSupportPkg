@@ -183,18 +183,25 @@ OcRunSimpleBootPicker (
   IN OC_PICKER_CONTEXT  *Context
   )
 {
-  EFI_STATUS                  Status;
-  APPLE_BOOT_POLICY_PROTOCOL  *AppleBootPolicy;
-  OC_BOOT_ENTRY               *Chosen;
-  OC_BOOT_ENTRY               *Entries;
-  UINTN                       EntryCount;
-  INTN                        DefaultEntry;
+  EFI_STATUS                         Status;
+  APPLE_BOOT_POLICY_PROTOCOL         *AppleBootPolicy;
+  APPLE_KEY_MAP_AGGREGATOR_PROTOCOL  *KeyMap;
+  OC_BOOT_ENTRY                      *Chosen;
+  OC_BOOT_ENTRY                      *Entries;
+  UINTN                              EntryCount;
+  INTN                               DefaultEntry;
 
   Chosen = NULL;
   
   AppleBootPolicy = OcAppleBootPolicyInstallProtocol (FALSE);
   if (AppleBootPolicy == NULL) {
     DEBUG ((DEBUG_ERROR, "OCB: AppleBootPolicy locate failure\n"));
+    return EFI_NOT_FOUND;
+  }
+  
+  KeyMap = OcAppleKeyMapInstallProtocols (FALSE);
+  if (KeyMap == NULL) {
+    DEBUG ((DEBUG_ERROR, "OCB: AppleKeyMap locate failure\n"));
     return EFI_NOT_FOUND;
   }
 
@@ -317,6 +324,11 @@ OcRunSimpleBootPicker (
       if (EFI_ERROR (Status)) {
         gBS->Stall (SECONDS_TO_MICROSECONDS (5));
       }
+      //
+      // Ensure that we flush all pressed keys after the application.
+      // This resolves the problem of application-pressed keys being used to control the menu.
+      //
+      OcKeyMapFlush (KeyMap, 0, TRUE);
     }
     
     if (Chosen != NULL){

@@ -174,34 +174,39 @@ OcShowSimpleBootMenu (
   OUT OC_BOOT_ENTRY               **ChosenBootEntry
   )
 {
-  EFI_STATUS                      Status;
-  EFI_SIMPLE_TEXT_OUTPUT_PROTOCOL *ConOut;
-  EFI_SIMPLE_TEXT_OUTPUT_MODE     SavedConsoleMode;
-  UINTN                           Index;
-  INTN                            KeyIndex;
-  CHAR16                          Code[2];
-  UINT32                          TimeOutSeconds;
-  UINTN                           Columns;
-  UINTN                           Rows;
-  UINTN                           VisibleList[Count];
-  UINTN                           VisibleIndex;
-  BOOLEAN                         ShowAll;
-  UINTN                           Selected;
-  UINTN                           BannerCol;
-  UINTN                           BannerRow;
-  UINTN                           ItemCol;
-  UINTN                           ItemRow;
-  UINTN                           MaxStrWidth;
-  UINTN                           StrWidth;
-  APPLE_KEY_CODE                  LastPolled;
-  BOOLEAN                         SetDefault;
+  EFI_STATUS                         Status;
+  EFI_SIMPLE_TEXT_OUTPUT_PROTOCOL    *ConOut;
+  EFI_SIMPLE_TEXT_OUTPUT_MODE        SavedConsoleMode;
+  UINTN                              Index;
+  INTN                               KeyIndex;
+  CHAR16                             Code[2];
+  UINT32                             TimeOutSeconds;
+  UINTN                              Columns;
+  UINTN                              Rows;
+  UINTN                              VisibleList[Count];
+  UINTN                              VisibleIndex;
+  BOOLEAN                            ShowAll;
+  UINTN                              Selected;
+  UINTN                              BannerCol;
+  UINTN                              BannerRow;
+  UINTN                              ItemCol;
+  UINTN                              ItemRow;
+  UINTN                              MaxStrWidth;
+  UINTN                              StrWidth;
+  APPLE_KEY_MAP_AGGREGATOR_PROTOCOL  *KeyMap;
+  BOOLEAN                            SetDefault;
   
   Code[1]        = '\0';
-  LastPolled     = 0;
   VisibleIndex   = 0;
   ShowAll        = FALSE;
   MaxStrWidth    = 0;
   TimeOutSeconds = Context->TimeoutSeconds;
+  
+  KeyMap = OcAppleKeyMapInstallProtocols (FALSE);
+  if (KeyMap == NULL) {
+    DEBUG ((DEBUG_ERROR, "OCB: Missing AppleKeyMapAggregator\n"));
+    return EFI_UNSUPPORTED;
+  }
   
   ConOut = gST->ConOut;
   CopyMem (&SavedConsoleMode, ConOut->Mode, sizeof (SavedConsoleMode));
@@ -267,7 +272,7 @@ OcShowSimpleBootMenu (
     }
 
     while (TRUE) {
-      KeyIndex = OcWaitForAppleKeyIndex (Context, TimeOutSeconds > 0 ? 1 : 0, Context->PollAppleHotKeys, &LastPolled, &SetDefault);
+      KeyIndex = OcWaitForAppleKeyIndex (Context, KeyMap, TimeOutSeconds > 0 ? 1 : 0, Context->PollAppleHotKeys, &SetDefault);
       --TimeOutSeconds;
       if ((KeyIndex == OC_INPUT_TIMEOUT && TimeOutSeconds == 0) || KeyIndex == OC_INPUT_RETURN) {
         *ChosenBootEntry = &BootEntries[DefaultEntry];

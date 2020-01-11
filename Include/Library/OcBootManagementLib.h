@@ -20,6 +20,7 @@
 #include <IndustryStandard/AppleHid.h>
 #include <Library/OcAppleBootPolicyLib.h>
 #include <Library/OcStringLib.h>
+#include <Protocol/AppleKeyMapAggregator.h>
 #include <Protocol/LoadedImage.h>
 
 /**
@@ -650,19 +651,20 @@ OcLoadPickerHotKeys (
   Obtains key index from user input.
 
   @param[in,out]  Context      Picker context.
-  @param[in]      Timeout         Timeout to wait for.
+  @param[in]      KeyMap       Apple Key Map Aggregator protocol.
+  @param[in]      Timeout        Timeout to wait for.
   @param[in]      PollHotkeys  Poll key combinations.
-  @param[in,out]  LastKey      Last key press, optional, optional
+  @param[out]     SetDefault   Set boot option as default, optional.
 
   @returns key index [0, OC_INPUT_MAX) or OC_INPUT_* value.
 **/
 INTN
 OcWaitForAppleKeyIndex (
-  IN OUT OC_PICKER_CONTEXT  *Context,
-  IN     UINTN              Timeout,
-  IN     BOOLEAN            PollHotkeys,
-  IN OUT APPLE_KEY_CODE     *LastKey     OPTIONAL,
-     OUT BOOLEAN            *SetDefault  OPTIONAL
+  IN OUT OC_PICKER_CONTEXT                  *Context,
+  IN     APPLE_KEY_MAP_AGGREGATOR_PROTOCOL  *KeyMap,
+  IN     UINTN                              Timeout,
+  IN     BOOLEAN                            PollHotkeys,
+     OUT BOOLEAN                            *SetDefault  OPTIONAL
   );
 
 /**

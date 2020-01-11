@@ -123,20 +123,19 @@ OcLoadPickerHotKeys (
 
 INTN
 OcWaitForAppleKeyIndex (
-  IN OUT OC_PICKER_CONTEXT  *Context,
-  IN     UINTN              Timeout,
-  IN     BOOLEAN            PollHotkeys,
-  IN OUT APPLE_KEY_CODE     *LastKey  OPTIONAL,
-     OUT BOOLEAN            *SetDefault  OPTIONAL
+  IN OUT OC_PICKER_CONTEXT                  *Context,
+  IN     APPLE_KEY_MAP_AGGREGATOR_PROTOCOL  *KeyMap,
+  IN     UINTN                              Timeout,
+  IN     BOOLEAN                            PollHotkeys,
+     OUT BOOLEAN                            *SetDefault  OPTIONAL
   )
 {
   EFI_STATUS                         Status;
-  APPLE_KEY_MAP_AGGREGATOR_PROTOCOL  *KeyMap;
   APPLE_KEY_CODE                     KeyCode;
 
   UINTN                              NumKeys;
   APPLE_MODIFIER_MAP                 Modifiers;
-  APPLE_KEY_CODE                     Keys[8];
+  APPLE_KEY_CODE                     Keys[OC_KEY_MAP_DEFAULT_SIZE];
 
   BOOLEAN                            HasCommand;
   BOOLEAN                            HasShift;
@@ -158,11 +157,6 @@ OcWaitForAppleKeyIndex (
   // when ShowPicker is enabled, and for this reason we support these hotkeys
   // within picker itself.
   //
-  KeyMap = OcAppleKeyMapInstallProtocols (FALSE);
-  if (KeyMap == NULL) {
-    DEBUG ((DEBUG_ERROR, "OCB: Missing AppleKeyMapAggregator\n"));
-    return OC_INPUT_INVALID;
-  }
 
   CurrTime  = GetTimeInNanoSecond (GetPerformanceCounter ());
   EndTime   = CurrTime + Timeout * 1000000000ULL;
@@ -186,14 +180,6 @@ OcWaitForAppleKeyIndex (
     }
 
     CurrTime    = GetTimeInNanoSecond (GetPerformanceCounter ());
-    
-    //
-    // Reset lastly pressed key.
-    //
-    if (LastKey != NULL && (Modifiers != 0 || NumKeys != 1 || *LastKey != Keys[0])) {
-      *LastKey = 0;
-    }
-    
     //
     // Handle key combinations.
     //
@@ -304,6 +290,7 @@ OcWaitForAppleKeyIndex (
     
     if (OcKeyMapHasKey (Keys, NumKeys, AppleHidUsbKbUsageKeyEscape)
      || OcKeyMapHasKey (Keys, NumKeys, AppleHidUsbKbUsageKeyZero)) {
+      OcKeyMapFlush (KeyMap, 0, TRUE);
       return OC_INPUT_ABORTED;
     }
     
@@ -311,22 +298,13 @@ OcWaitForAppleKeyIndex (
     // Default update is desired for Ctrl+Index and Ctrl+Enter.
     //
     WantsDefault = Modifiers != 0 && (Modifiers & ~(APPLE_MODIFIER_LEFT_CONTROL | APPLE_MODIFIER_RIGHT_CONTROL)) == 0;
-    
-    //
-    // Ignore repeated key press.
-    //
-    if (LastKey != NULL && (Modifiers == 0 || WantsDefault) && NumKeys == 1 && *LastKey == Keys[0]) {
-      NumKeys = 0;
-    }
+
     //
     // Check exact match on index strokes.
     //
     if ((Modifiers == 0 || WantsDefault) && NumKeys == 1) {
-      if (LastKey != NULL) {
-        *LastKey = Keys[0];
-      }
-      
       if (Keys[0] == AppleHidUsbKbUsageKeySpaceBar) {
+        OcKeyMapFlush (KeyMap, Keys[0], TRUE);
         return OC_INPUT_SPACEBAR;
       }
       
@@ -336,14 +314,17 @@ OcWaitForAppleKeyIndex (
         if (WantsDefault && SetDefault != NULL) {
           *SetDefault = TRUE;
         }
+        OcKeyMapFlush (KeyMap, Keys[0], TRUE);
         return OC_INPUT_RETURN;
       }
       
       if (Keys[0] == AppleHidUsbKbUsageKeyUpArrow) {
+        OcKeyMapFlush (KeyMap, Keys[0], TRUE);
         return OC_INPUT_UP;
       }
       
       if (Keys[0] == AppleHidUsbKbUsageKeyDownArrow) {
+        OcKeyMapFlush (KeyMap, Keys[0], TRUE);
         return OC_INPUT_DOWN;
       }
     
@@ -353,6 +334,7 @@ OcWaitForAppleKeyIndex (
           if (WantsDefault && SetDefault != NULL) {
             *SetDefault = TRUE;
           }
+          OcKeyMapFlush (KeyMap, Keys[0], TRUE);
           return (INTN) (KeyCode - AppleHidUsbKbUsageKeyOne);
         }
       }
@@ -363,6 +345,7 @@ OcWaitForAppleKeyIndex (
           if (WantsDefault && SetDefault != NULL) {
             *SetDefault = TRUE;
           }
+          OcKeyMapFlush (KeyMap, Keys[0], TRUE);
           return (INTN) (KeyCode - AppleHidUsbKbUsageKeyA + 9);
         }
       }
