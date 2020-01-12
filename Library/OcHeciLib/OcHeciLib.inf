@@ -1,8 +1,8 @@
 ## @file
 #
-#  Component description file for the library producing the SMC I/O protocol.
+#  Component description file for the library interacting with HECI protocols.
 #
-#  Copyright (C) 2017-2020, vit9696. All rights reserved.<BR>
+#  Copyright (C) 2019-2020, vit9696. All rights reserved.<BR>
 #
 # All rights reserved.
 #
@@ -18,11 +18,11 @@
 
 [Defines]
   INF_VERSION                    = 0x00010005
-  BASE_NAME                      = OcSmcLib
-  FILE_GUID                      = 736C6200-3878-4280-BEDD-AC51729CAACA
+  BASE_NAME                      = OcHeciLib
+  FILE_GUID                      = 1F1ECC50-2F1B-4888-AF74-686D8D7FC0E5
   MODULE_TYPE                    = BASE
   VERSION_STRING                 = 1.0
-  LIBRARY_CLASS                  = OcSmcLib|PEIM DXE_DRIVER DXE_RUNTIME_DRIVER UEFI_DRIVER UEFI_APPLICATION DXE_SMM_DRIVER
+  LIBRARY_CLASS                  = OcHeciLib|PEIM DXE_DRIVER DXE_RUNTIME_DRIVER UEFI_DRIVER UEFI_APPLICATION DXE_SMM_DRIVER
 
 #
 # The following information is for reference only and not required by the build tools.
@@ -31,8 +31,7 @@
 #
 
 [Sources]
-  OcSmcLib.c
-  OcSmcLibInternal.h
+  OcHeciLib.c
 
 [Packages]
   EfiPkg/EfiPkg.dec
@@ -44,16 +43,13 @@
   gOcWriteOnlyVariableGuid
 
 [Protocols]
-  gAppleSmcIoProtocolGuid  ## SOMETIMES_PRODUCES
+  gEfiHeciProtocolGuid   ## SOMETIMES_CONSUMES
+  gEfiHeci2ProtocolGuid  ## SOMETIMES_CONSUMES
 
 [LibraryClasses]
   BaseMemoryLib
   DebugLib
   MemoryAllocationLib
-  OcCryptoLib
   OcMiscLib
-  OcRtcLib
-  PcdLib
   UefiBootServicesTableLib
   UefiLib
-  UefiRuntimeServicesTableLib
