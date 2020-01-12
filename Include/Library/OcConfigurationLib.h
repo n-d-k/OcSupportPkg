@@ -242,6 +242,7 @@
   _(BOOLEAN                     , CustomSmbiosGuid            ,     , FALSE  , ()) \
   _(BOOLEAN                     , DisableIoMapper             ,     , FALSE  , ()) \
   _(BOOLEAN                     , ExternalDiskIcons           ,     , FALSE  , ()) \
+  _(BOOLEAN                     , IncreasePciBarSize          ,     , FALSE  , ()) \
   _(BOOLEAN                     , LapicKernelPanic            ,     , FALSE  , ()) \
   _(BOOLEAN                     , PanicNoKextDump             ,     , FALSE  , ()) \
   _(BOOLEAN                     , PowerTimeoutKernelPanic     ,     , FALSE  , ()) \
