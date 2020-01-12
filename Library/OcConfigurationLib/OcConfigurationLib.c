@@ -283,6 +283,7 @@ mKernelQuirksSchema[] = {
   OC_SCHEMA_BOOLEAN_IN ("AppleCpuPmCfgLock",       OC_GLOBAL_CONFIG, Kernel.Quirks.AppleCpuPmCfgLock),
   OC_SCHEMA_BOOLEAN_IN ("AppleXcpmCfgLock",        OC_GLOBAL_CONFIG, Kernel.Quirks.AppleXcpmCfgLock),
   OC_SCHEMA_BOOLEAN_IN ("AppleXcpmExtraMsrs",      OC_GLOBAL_CONFIG, Kernel.Quirks.AppleXcpmExtraMsrs),
+  OC_SCHEMA_BOOLEAN_IN ("AppleXcpmForceBoost",     OC_GLOBAL_CONFIG, Kernel.Quirks.AppleXcpmForceBoost),
   OC_SCHEMA_BOOLEAN_IN ("CustomSMBIOSGuid",        OC_GLOBAL_CONFIG, Kernel.Quirks.CustomSmbiosGuid),
   OC_SCHEMA_BOOLEAN_IN ("DisableIoMapper",         OC_GLOBAL_CONFIG, Kernel.Quirks.DisableIoMapper),
   OC_SCHEMA_BOOLEAN_IN ("ExternalDiskIcons",       OC_GLOBAL_CONFIG, Kernel.Quirks.ExternalDiskIcons),
@@ -408,11 +409,12 @@ mNvramLegacySchema = OC_SCHEMA_ARRAY (NULL, &mNvramLegacyEntrySchema);
 STATIC
 OC_SCHEMA
 mNvramConfigurationSchema[] = {
-  OC_SCHEMA_MAP_IN     ("Add",           OC_GLOBAL_CONFIG, Nvram.Add, &mNvramAddSchema),
-  OC_SCHEMA_MAP_IN     ("Block",         OC_GLOBAL_CONFIG, Nvram.Block, &mNvramBlockSchema),
-  OC_SCHEMA_BOOLEAN_IN ("LegacyEnable",  OC_GLOBAL_CONFIG, Nvram.UseLegacy),
-  OC_SCHEMA_MAP_IN     ("LegacySchema",  OC_GLOBAL_CONFIG, Nvram.Legacy, &mNvramLegacySchema),
-  OC_SCHEMA_BOOLEAN_IN ("WriteFlash",    OC_GLOBAL_CONFIG, Nvram.WriteFlash),
+  OC_SCHEMA_MAP_IN     ("Add",             OC_GLOBAL_CONFIG, Nvram.Add, &mNvramAddSchema),
+  OC_SCHEMA_MAP_IN     ("Block",           OC_GLOBAL_CONFIG, Nvram.Block, &mNvramBlockSchema),
+  OC_SCHEMA_BOOLEAN_IN ("LegacyEnable",    OC_GLOBAL_CONFIG, Nvram.LegacyEnable),
+  OC_SCHEMA_BOOLEAN_IN ("LegacyOverwrite", OC_GLOBAL_CONFIG, Nvram.LegacyOverwrite),
+  OC_SCHEMA_MAP_IN     ("LegacySchema",    OC_GLOBAL_CONFIG, Nvram.Legacy, &mNvramLegacySchema),
+  OC_SCHEMA_BOOLEAN_IN ("WriteFlash",      OC_GLOBAL_CONFIG, Nvram.WriteFlash),
 };
 
 //

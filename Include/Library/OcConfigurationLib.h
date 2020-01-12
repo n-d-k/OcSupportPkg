@@ -238,6 +238,7 @@
   _(BOOLEAN                     , AppleCpuPmCfgLock           ,     , FALSE  , ()) \
   _(BOOLEAN                     , AppleXcpmCfgLock            ,     , FALSE  , ()) \
   _(BOOLEAN                     , AppleXcpmExtraMsrs          ,     , FALSE  , ()) \
+  _(BOOLEAN                     , AppleXcpmForceBoost         ,     , FALSE  , ()) \
   _(BOOLEAN                     , CustomSmbiosGuid            ,     , FALSE  , ()) \
   _(BOOLEAN                     , DisableIoMapper             ,     , FALSE  , ()) \
   _(BOOLEAN                     , ExternalDiskIcons           ,     , FALSE  , ()) \
@@ -356,7 +357,8 @@
   _(OC_NVRAM_ADD_MAP           , Add               ,     , OC_CONSTR2 (OC_NVRAM_ADD_MAP, _, __)        , OC_DESTR (OC_NVRAM_ADD_MAP)) \
   _(OC_NVRAM_BLOCK_MAP         , Block             ,     , OC_CONSTR2 (OC_NVRAM_BLOCK_MAP, _, __)      , OC_DESTR (OC_NVRAM_BLOCK_MAP)) \
   _(OC_NVRAM_LEGACY_MAP        , Legacy            ,     , OC_CONSTR2 (OC_NVRAM_LEGACY_MAP, _, __)     , OC_DESTR (OC_NVRAM_LEGACY_MAP)) \
-  _(BOOLEAN                    , UseLegacy         ,     , FALSE                                       , () ) \
+  _(BOOLEAN                    , LegacyEnable      ,     , FALSE                                       , () ) \
+  _(BOOLEAN                    , LegacyOverwrite   ,     , FALSE                                       , () ) \
   _(BOOLEAN                    , WriteFlash        ,     , FALSE                                       , () )
   OC_DECLARE (OC_NVRAM_CONFIG)
 
