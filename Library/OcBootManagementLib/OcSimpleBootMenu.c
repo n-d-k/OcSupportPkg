@@ -30,6 +30,94 @@
 
 STATIC
 VOID
+ClearLines (
+  IN UINTN        LeftColumn,
+  IN UINTN        RightColumn,
+  IN UINTN        TopRow,
+  IN UINTN        BottomRow
+  )
+{
+  CHAR16          *String;
+  UINTN           Index;
+  
+  String = AllocateZeroPool ((RightColumn - (LeftColumn - 1)) * sizeof (CHAR16));
+  ASSERT (String != NULL);
+  
+  gST->ConOut->SetAttribute (gST->ConOut, EFI_TEXT_ATTR (EFI_LIGHTGRAY, EFI_BLACK));
+  
+  for (Index = 0; Index < (RightColumn - LeftColumn) ; ++Index) {
+    String[Index] = 0x20;
+  }
+  
+  for (Index = TopRow; Index <= BottomRow; ++Index) {
+    gST->ConOut->SetCursorPosition (gST->ConOut, LeftColumn, Index);
+    gST->ConOut->OutputString (gST->ConOut, String);
+  }
+  
+  gST->ConOut->SetCursorPosition (gST->ConOut, LeftColumn, TopRow);
+  
+  FreePool (String);
+}
+
+STATIC
+VOID
+DrawFrame (
+  IN UINTN               Columns,
+  IN UINTN               Rows
+  )
+{
+  CHAR16                 Char[2];
+  UINTN                  Index;
+  UINTN                  Index1;
+  
+  Char[1] = '\0';
+  
+  Char[0] = BOXDRAW_DOUBLE_DOWN_RIGHT;
+  gST->ConOut->SetCursorPosition (gST->ConOut, 1, 0);
+  gST->ConOut->OutputString (gST->ConOut, Char);
+  Char[0] = BOXDRAW_DOUBLE_HORIZONTAL;
+  for (Index = 2; Index < Columns - 2; ++Index) {
+    gST->ConOut->OutputString (gST->ConOut, Char);
+  }
+  Char[0] = BOXDRAW_DOUBLE_DOWN_LEFT;
+  gST->ConOut->OutputString (gST->ConOut, Char);
+  
+  Char[0] = BOXDRAW_DOUBLE_VERTICAL;
+  for (Index = 1; Index < Rows - 1; ++Index) {
+    // draw middle double line
+    if (Index == (Rows - 3) || Index == 3) {
+      Char[0] = BOXDRAW_DOUBLE_VERTICAL_RIGHT;
+      gST->ConOut->SetCursorPosition (gST->ConOut, 1, Index);
+      gST->ConOut->OutputString (gST->ConOut, Char);
+      Char[0] = BOXDRAW_DOUBLE_HORIZONTAL;
+      for (Index1 = 2; Index1 < Columns - 2; ++Index1) {
+        gST->ConOut->OutputString (gST->ConOut, Char);
+      }
+      Char[0] = BOXDRAW_DOUBLE_VERTICAL_LEFT;
+      gST->ConOut->OutputString (gST->ConOut, Char);
+      Char[0] = BOXDRAW_DOUBLE_VERTICAL;
+      continue;
+    }
+    
+    gST->ConOut->SetCursorPosition (gST->ConOut, 1, Index);
+    gST->ConOut->OutputString (gST->ConOut, Char);
+    gST->ConOut->SetCursorPosition (gST->ConOut, Columns - 2, Index);
+    gST->ConOut->OutputString (gST->ConOut, Char);
+  }
+  
+  Char[0] = BOXDRAW_DOUBLE_UP_RIGHT;
+  gST->ConOut->SetCursorPosition (gST->ConOut, 1, Rows - 1);
+  gST->ConOut->OutputString (gST->ConOut, Char);
+  Char[0] = BOXDRAW_DOUBLE_HORIZONTAL;
+  for (Index = 2; Index < Columns - 2; ++Index) {
+    gST->ConOut->OutputString (gST->ConOut, Char);
+  }
+  Char[0] = BOXDRAW_DOUBLE_UP_LEFT;
+  gST->ConOut->OutputString (gST->ConOut, Char);
+}
+
+STATIC
+VOID
 ShowBannerAt (
   IN UINTN               Col,
   IN UINTN               Row
@@ -37,19 +125,19 @@ ShowBannerAt (
 {
   gST->ConOut->SetCursorPosition (gST->ConOut, Col, Row);
   gST->ConOut->OutputString (gST->ConOut,
-    L"  _____   ______  _____   __  ___ _____  _____   _____   _____  "
+    L"   _____   ______  _____   __  ___ _____  _____   _____   _____  "
     );
   gST->ConOut->SetCursorPosition (gST->ConOut, Col, Row + 1);
   gST->ConOut->OutputString (gST->ConOut,
-    L" / ___ \\ /   _  )/  __ \\ /  |/  //  ___)/ ___ \\ /  __ \\ /  __ \\ "
+    L"  / ___ \\ /   _  )/  __ \\ /  |/  //  ___)/ ___ \\ /  __ \\ /  __ \\ "
     );
   gST->ConOut->SetCursorPosition (gST->ConOut, Col, Row + 2);
   gST->ConOut->OutputString (gST->ConOut,
-    L"/ /__/ //  /___//  (___//      //  /__ / /__/ //  /_/ //  (___/ "
+    L" / /__/ //  /___//  (___//      //  /__ / /__/ //  /_/ //  (___/ "
     );
   gST->ConOut->SetCursorPosition (gST->ConOut, Col, Row + 3);
   gST->ConOut->OutputString (gST->ConOut,
-    L"\\_____//__/     \\_____ /__/|__/ \\_____)\\_____//__/ \\__\\\\_____   "
+    L" \\_____//__/     \\_____ /__/|__/ \\_____)\\_____//__/ \\__\\\\_____   "
     );
 }
 
@@ -62,11 +150,24 @@ ShowDateAt (
 {
   EFI_STATUS         Status;
   EFI_TIME           DateTime;
-  CHAR16             DateStr[11];
+  CHAR16             DateStr[24];
+  UINTN              Hour;
+  CHAR16             *Str;
   
+  Str = NULL;
+  Hour = 0;
   Status = gRT->GetTime (&DateTime, NULL);
+  
   if (!EFI_ERROR (Status)) {
-    UnicodeSPrint (DateStr, sizeof (DateStr), L"%02u/%02u/%04u", DateTime.Month, DateTime.Day, DateTime.Year);
+    Hour = (UINTN) DateTime.Hour;
+    Str = Hour >= 12 ? L"PM" : L"AM";
+    if (Hour > 12) {
+      Hour = Hour - 12;
+    }
+    UnicodeSPrint (DateStr, sizeof (DateStr), L"%02u/%02u/%04u %02u:%02u:%02u %s",
+                   DateTime.Month, DateTime.Day, DateTime.Year, Hour, DateTime.Minute, DateTime.Second, Str);
+    ClearLines (Col, Col + sizeof (DateStr), Row, Row);
+    gST->ConOut->SetAttribute (gST->ConOut, EFI_TEXT_ATTR (EFI_DARKGRAY, EFI_BLACK));
     gST->ConOut->SetCursorPosition (gST->ConOut, Col, Row);
     gST->ConOut->OutputString (gST->ConOut, DateStr);
   }
@@ -88,7 +189,8 @@ ShowOcVersionAt (
   
   if (String != NULL) {
     Length = AsciiStrLen (String);
-    gST->ConOut->SetCursorPosition (gST->ConOut, Col  - (Length + 7), Row);
+    gST->ConOut->SetAttribute (gST->ConOut, EFI_TEXT_ATTR (EFI_DARKGRAY, EFI_BLACK));
+    gST->ConOut->SetCursorPosition (gST->ConOut, Col  - (Length + 9), Row);
     gST->ConOut->OutputString (gST->ConOut, L"N-D-K ");
     for (Index = 0; Index < Length; ++Index) {
       Code[0] = String[Index];
@@ -98,36 +200,7 @@ ShowOcVersionAt (
 }
 
 STATIC
-VOID
-ClearLines (
-  IN UINTN        LeftColumn,
-  IN UINTN        RightColumn,
-  IN UINTN        TopRow,
-  IN UINTN        BottomRow
-  )
-{
-  CHAR16          *String;
-  UINTN           Index;
-  
-  String = AllocateZeroPool ((RightColumn - LeftColumn) * sizeof (CHAR16));
-  ASSERT (String != NULL);
-  
-  for (Index = 0; Index < (RightColumn - (LeftColumn + 1)) ; ++Index) {
-    String[Index] = 0x20;
-  }
-  
-  for (Index = TopRow; Index <= BottomRow; ++Index) {
-    gST->ConOut->SetCursorPosition (gST->ConOut, LeftColumn, Index);
-    gST->ConOut->OutputString (gST->ConOut, String);
-  }
-  
-  gST->ConOut->SetCursorPosition (gST->ConOut, LeftColumn, TopRow);
-  
-  FreePool (String);
-}
-
-STATIC
-VOID
+BOOLEAN
 ShowTimeOutMessage (
   IN UINTN           Timeout,
   IN UINTN           Col,
@@ -149,6 +222,45 @@ ShowTimeOutMessage (
     gST->ConOut->SetCursorPosition (gST->ConOut, Col, Row);
     ClearLines (Col, Col + 52, Row, Row);
   }
+  return !(Timeout > 0);
+}
+
+STATIC
+VOID
+PrintEntry (
+  IN UINTN        LeftColumn,
+  IN UINTN        RightColumn,
+  IN UINTN        Row,
+  IN UINTN        Selected,
+  IN CHAR16       *Name,
+  IN BOOLEAN      Ext,
+  IN BOOLEAN      Dmg,
+  IN BOOLEAN      Highlighted
+  )
+{
+  EFI_SIMPLE_TEXT_OUTPUT_PROTOCOL    *ConOut;
+  CHAR16                             Code[3];
+  
+  ConOut  = gST->ConOut;
+  Code[0] = 0x20;
+  Code[1] = OC_INPUT_STR[Selected];
+  Code[2] = '\0';
+  
+  ClearLines (LeftColumn, RightColumn, Row, Row);
+  ConOut->SetCursorPosition (ConOut, LeftColumn, Row);
+  ConOut->SetAttribute (ConOut, EFI_TEXT_ATTR (Highlighted ? EFI_BLACK : EFI_LIGHTGRAY, Highlighted ? EFI_LIGHTGRAY : EFI_BLACK));
+  ConOut->OutputString (ConOut, Code);
+  ConOut->OutputString (ConOut, L". ");
+  ConOut->OutputString (ConOut, Name);
+  if (Ext) {
+    ConOut->OutputString (ConOut, L" (ext)");
+  }
+  if (Dmg) {
+    ConOut->OutputString (ConOut, L" (dmg)");
+  }
+  while (ConOut->Mode->CursorColumn < RightColumn) {
+    ConOut->OutputString (ConOut, L" ");
+  }
 }
 
 STATIC
@@ -157,11 +269,9 @@ RestoreConsoleMode (
   IN EFI_SIMPLE_TEXT_OUTPUT_MODE     SavedConsoleMode
   )
 {
-  
   gST->ConOut->SetAttribute (gST->ConOut, SavedConsoleMode.Attribute);
   gST->ConOut->EnableCursor (gST->ConOut, SavedConsoleMode.CursorVisible);
   gST->ConOut->SetCursorPosition (gST->ConOut, 0, 0);
-  
 }
                
 
@@ -179,7 +289,6 @@ OcShowSimpleBootMenu (
   EFI_SIMPLE_TEXT_OUTPUT_MODE        SavedConsoleMode;
   UINTN                              Index;
   INTN                               KeyIndex;
-  CHAR16                             Code[2];
   UINT32                             TimeOutSeconds;
   UINTN                              Columns;
   UINTN                              Rows;
@@ -195,12 +304,13 @@ OcShowSimpleBootMenu (
   UINTN                              StrWidth;
   APPLE_KEY_MAP_AGGREGATOR_PROTOCOL  *KeyMap;
   BOOLEAN                            SetDefault;
+  BOOLEAN                            TimeoutExpired;
   
-  Code[1]        = '\0';
   VisibleIndex   = 0;
   ShowAll        = FALSE;
   MaxStrWidth    = 0;
   TimeOutSeconds = Context->TimeoutSeconds;
+  TimeoutExpired = FALSE;
   
   KeyMap = OcAppleKeyMapInstallProtocols (FALSE);
   if (KeyMap == NULL) {
@@ -212,7 +322,7 @@ OcShowSimpleBootMenu (
   CopyMem (&SavedConsoleMode, ConOut->Mode, sizeof (SavedConsoleMode));
   
   for (Index = 0; Index < MIN (Count, OC_INPUT_MAX); ++Index) {
-    StrWidth = UnicodeStringDisplayLength (BootEntries[Index].Name);
+    StrWidth = UnicodeStringDisplayLength (BootEntries[Index].Name) + ((BootEntries[Index].IsFolder || BootEntries[Index].IsExternal) ? 11 : 5);
     MaxStrWidth = MaxStrWidth > StrWidth ? MaxStrWidth : StrWidth;
   }
   
@@ -225,54 +335,47 @@ OcShowSimpleBootMenu (
   
   // This is necessary to correct console mode after returning from running any kind of tool.
   Status = SetConsoleMode ((UINT32) Columns, (UINT32) Rows);
-  DEBUG ((DEBUG_INFO, "OCSSBM: Resetting console mode to %ux%u - %r\n", Columns, Rows, Status));
+  DEBUG ((DEBUG_INFO, "OCSBM: Resetting console mode to %ux%u - %r\n", Columns, Rows, Status));
   gST->ConOut->EnableCursor (gST->ConOut, FALSE);
   
-  MaxStrWidth = MaxStrWidth + 12;
-  BannerCol = (Columns - 64) / 2;
+  BannerCol = (Columns - 65) / 2;
   BannerRow = (Rows - (Count + 16)) / 2;
   ItemCol = (Columns - MaxStrWidth) / 2;
   ItemRow = (Rows - (Count + 2)) / 2;
   
   ConOut->ClearScreen (ConOut);
   ConOut->SetAttribute (ConOut, EFI_TEXT_ATTR (EFI_DARKGRAY, EFI_BLACK));
-  ShowBannerAt (BannerCol, BannerRow);
-  ShowDateAt (1, Rows - 1);
-  ShowOcVersionAt (Context->TitleSuffix, Columns, Rows - 1);
+  DrawFrame (Columns, Rows);
+  ShowBannerAt (BannerCol, 1);
+  ShowDateAt (3, Rows - 2);
+  ShowOcVersionAt (Context->TitleSuffix, Columns, Rows - 2);
   
   while (TRUE) {
-    ShowTimeOutMessage (TimeOutSeconds, (Columns - 52) / 2, ItemRow + Count + 2);
+    if (!TimeoutExpired) {
+      TimeoutExpired = ShowTimeOutMessage (TimeOutSeconds, (Columns - 52) / 2, ItemRow + Count + 2);
+      TimeOutSeconds = TimeoutExpired ? 10000 : TimeOutSeconds;
+    }
     ClearLines (ItemCol, ItemCol + MaxStrWidth, ItemRow, ItemRow + VisibleIndex);
-    VisibleIndex = 0;
-    for (Index = 0; Index < MIN (Count, OC_INPUT_MAX); ++Index) {
+    for (Index = 0, VisibleIndex = 0; Index < MIN (Count, OC_INPUT_MAX); ++Index) {
       if ((BootEntries[Index].Hidden && !ShowAll)
           || (BootEntries[Index].Type == OcBootSystem && !ShowAll)) {
         continue;
       }
       if (DefaultEntry == Index) {
         Selected = VisibleIndex;
-        ConOut->SetAttribute (ConOut, EFI_TEXT_ATTR (EFI_WHITE, EFI_BLACK));
-      } else {
-        ConOut->SetAttribute (ConOut, EFI_TEXT_ATTR (EFI_LIGHTGRAY, EFI_BLACK));
       }
-      ConOut->SetCursorPosition (ConOut, ItemCol, ItemRow + VisibleIndex);
-      Code[0] = OC_INPUT_STR[VisibleIndex];
       VisibleList[VisibleIndex] = Index;
-      ConOut->OutputString (ConOut, DefaultEntry == Index ? L"* " : L"  ");
-      ConOut->OutputString (ConOut, Code);
-      ConOut->OutputString (ConOut, L". ");
-      ConOut->OutputString (ConOut, BootEntries[Index].Name);
-      if (BootEntries[Index].IsExternal) {
-        ConOut->OutputString (ConOut, L" (ext)");
-      }
-      if (BootEntries[Index].IsFolder) {
-        ConOut->OutputString (ConOut, L" (dmg)");
-      }
+      PrintEntry (ItemCol, ItemCol + MaxStrWidth, ItemRow + VisibleIndex, VisibleIndex,
+                  BootEntries[Index].Name,
+                  BootEntries[Index].IsExternal,
+                  BootEntries[Index].IsFolder,
+                  DefaultEntry == Index
+                  );
       ++VisibleIndex;
     }
 
     while (TRUE) {
-      KeyIndex = OcWaitForAppleKeyIndex (Context, KeyMap, TimeOutSeconds > 0 ? 1 : 0, Context->PollAppleHotKeys, &SetDefault);
+      KeyIndex = OcWaitForAppleKeyIndex (Context, KeyMap, 1, Context->PollAppleHotKeys, &SetDefault);
       --TimeOutSeconds;
       if ((KeyIndex == OC_INPUT_TIMEOUT && TimeOutSeconds == 0) || KeyIndex == OC_INPUT_RETURN) {
         *ChosenBootEntry = &BootEntries[DefaultEntry];
@@ -297,13 +400,37 @@ OcShowSimpleBootMenu (
         TimeOutSeconds = 0;
         break;
       } else if (KeyIndex == OC_INPUT_UP) {
+        PrintEntry (ItemCol, ItemCol + MaxStrWidth, ItemRow + Selected, Selected,
+                    BootEntries[DefaultEntry].Name,
+                    BootEntries[DefaultEntry].IsExternal,
+                    BootEntries[DefaultEntry].IsFolder,
+                    FALSE
+                    );
         DefaultEntry = Selected > 0 ? VisibleList[Selected - 1] : VisibleList[VisibleIndex - 1];
+        Selected = DefaultEntry;
+        PrintEntry (ItemCol, ItemCol + MaxStrWidth, ItemRow + Selected, Selected,
+                    BootEntries[DefaultEntry].Name,
+                    BootEntries[DefaultEntry].IsExternal,
+                    BootEntries[DefaultEntry].IsFolder,
+                    TRUE
+                    );
         TimeOutSeconds = 0;
-        break;
       } else if (KeyIndex == OC_INPUT_DOWN) {
+        PrintEntry (ItemCol, ItemCol + MaxStrWidth, ItemRow + Selected, Selected,
+                    BootEntries[DefaultEntry].Name,
+                    BootEntries[DefaultEntry].IsExternal,
+                    BootEntries[DefaultEntry].IsFolder,
+                    FALSE
+                    );
         DefaultEntry = Selected < (VisibleIndex - 1) ? VisibleList[Selected + 1] : 0;
+        Selected = DefaultEntry;
+        PrintEntry (ItemCol, ItemCol + MaxStrWidth, ItemRow + Selected, Selected,
+                    BootEntries[DefaultEntry].Name,
+                    BootEntries[DefaultEntry].IsExternal,
+                    BootEntries[DefaultEntry].IsFolder,
+                    TRUE
+                    );
         TimeOutSeconds = 0;
-        break;
       } else if (KeyIndex != OC_INPUT_INVALID && (UINTN)KeyIndex < VisibleIndex) {
         ASSERT (KeyIndex >= 0);
         *ChosenBootEntry = &BootEntries[VisibleList[KeyIndex]];
@@ -320,11 +447,13 @@ OcShowSimpleBootMenu (
         TimeOutSeconds = 0;
       }
       
-      if (TimeOutSeconds == 0) {
-        break;
+      if (!TimeoutExpired) {
+        ShowDateAt (3, Rows - 2);
+        TimeoutExpired = ShowTimeOutMessage (TimeOutSeconds, (Columns - 52) / 2, ItemRow + Count + 2);
+        TimeOutSeconds = TimeoutExpired ? 10000 : TimeOutSeconds;
+      } else {
+        ShowDateAt (3, Rows - 2);
       }
-      
-      ShowTimeOutMessage (TimeOutSeconds, (Columns - 52) / 2, ItemRow + Count + 2);
     }
   }
 
