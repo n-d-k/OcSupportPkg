@@ -127,7 +127,7 @@ ClearLines (
 }
 
 STATIC
-BOOLEAN
+VOID
 ShowTimeOutMessage (
   IN UINTN           Timeout,
   IN UINTN           Col,
@@ -148,42 +148,6 @@ ShowTimeOutMessage (
   } else {
     gST->ConOut->SetCursorPosition (gST->ConOut, Col, Row);
     ClearLines (Col, Col + 52, Row, Row);
-  }
-  return !(Timeout > 0);
-}
-
-STATIC
-VOID
-PrintEntry (
-  IN UINTN        LeftColumn,
-  IN UINTN        RightColumn,
-  IN UINTN        Row,
-  IN UINTN        Selected,
-  IN CHAR16       *Name,
-  IN BOOLEAN      Ext,
-  IN BOOLEAN      Dmg,
-  IN BOOLEAN      Highlighted
-  )
-{
-  EFI_SIMPLE_TEXT_OUTPUT_PROTOCOL    *ConOut;
-  CHAR16                             Code[2];
-  
-  ConOut  = gST->ConOut;
-  Code[0] = OC_INPUT_STR[Selected];
-  Code[1] = '\0';
-  
-  ClearLines (LeftColumn, RightColumn, Row, Row);
-  ConOut->SetCursorPosition (ConOut, LeftColumn, Row);
-  ConOut->SetAttribute (ConOut, EFI_TEXT_ATTR (Highlighted ? EFI_WHITE : EFI_LIGHTGRAY, EFI_BLACK));
-  ConOut->OutputString (ConOut, Highlighted ? L"* " : L"  ");
-  ConOut->OutputString (ConOut, Code);
-  ConOut->OutputString (ConOut, L". ");
-  ConOut->OutputString (ConOut, Name);
-  if (Ext) {
-    ConOut->OutputString (ConOut, L" (ext)");
-  }
-  if (Dmg) {
-    ConOut->OutputString (ConOut, L" (dmg)");
   }
 }
 
@@ -215,6 +179,7 @@ OcShowSimpleBootMenu (
   EFI_SIMPLE_TEXT_OUTPUT_MODE        SavedConsoleMode;
   UINTN                              Index;
   INTN                               KeyIndex;
+  CHAR16                             Code[2];
   UINT32                             TimeOutSeconds;
   UINTN                              Columns;
   UINTN                              Rows;
@@ -230,8 +195,8 @@ OcShowSimpleBootMenu (
   UINTN                              StrWidth;
   APPLE_KEY_MAP_AGGREGATOR_PROTOCOL  *KeyMap;
   BOOLEAN                            SetDefault;
-  BOOLEAN                            TimeoutExpired;
   
+  Code[1]        = '\0';
   VisibleIndex   = 0;
   ShowAll        = FALSE;
   MaxStrWidth    = 0;
@@ -276,23 +241,33 @@ OcShowSimpleBootMenu (
   ShowOcVersionAt (Context->TitleSuffix, Columns, Rows - 1);
   
   while (TRUE) {
-    TimeoutExpired = ShowTimeOutMessage (TimeOutSeconds, (Columns - 52) / 2, ItemRow + Count + 2);
+    ShowTimeOutMessage (TimeOutSeconds, (Columns - 52) / 2, ItemRow + Count + 2);
     ClearLines (ItemCol, ItemCol + MaxStrWidth, ItemRow, ItemRow + VisibleIndex);
-    for (Index = 0, VisibleIndex = 0; Index < MIN (Count, OC_INPUT_MAX); ++Index) {
+    VisibleIndex = 0;
+    for (Index = 0; Index < MIN (Count, OC_INPUT_MAX); ++Index) {
       if ((BootEntries[Index].Hidden && !ShowAll)
           || (BootEntries[Index].Type == OcBootSystem && !ShowAll)) {
         continue;
       }
       if (DefaultEntry == Index) {
         Selected = VisibleIndex;
+        ConOut->SetAttribute (ConOut, EFI_TEXT_ATTR (EFI_WHITE, EFI_BLACK));
+      } else {
+        ConOut->SetAttribute (ConOut, EFI_TEXT_ATTR (EFI_LIGHTGRAY, EFI_BLACK));
       }
+      ConOut->SetCursorPosition (ConOut, ItemCol, ItemRow + VisibleIndex);
+      Code[0] = OC_INPUT_STR[VisibleIndex];
       VisibleList[VisibleIndex] = Index;
-      PrintEntry (ItemCol, ItemCol + MaxStrWidth, ItemRow + VisibleIndex, VisibleIndex,
-                  BootEntries[Index].Name,
-                  BootEntries[Index].IsExternal,
-                  BootEntries[Index].IsFolder,
-                  DefaultEntry == Index
-                  );
+      ConOut->OutputString (ConOut, DefaultEntry == Index ? L"* " : L"  ");
+      ConOut->OutputString (ConOut, Code);
+      ConOut->OutputString (ConOut, L". ");
+      ConOut->OutputString (ConOut, BootEntries[Index].Name);
+      if (BootEntries[Index].IsExternal) {
+        ConOut->OutputString (ConOut, L" (ext)");
+      }
+      if (BootEntries[Index].IsFolder) {
+        ConOut->OutputString (ConOut, L" (dmg)");
+      }
       ++VisibleIndex;
     }
 
@@ -322,37 +297,13 @@ OcShowSimpleBootMenu (
         TimeOutSeconds = 0;
         break;
       } else if (KeyIndex == OC_INPUT_UP) {
-        PrintEntry (ItemCol, ItemCol + MaxStrWidth, ItemRow + Selected, Selected,
-                    BootEntries[DefaultEntry].Name,
-                    BootEntries[DefaultEntry].IsExternal,
-                    BootEntries[DefaultEntry].IsFolder,
-                    FALSE
-                    );
         DefaultEntry = Selected > 0 ? VisibleList[Selected - 1] : VisibleList[VisibleIndex - 1];
-        Selected = DefaultEntry;
-        PrintEntry (ItemCol, ItemCol + MaxStrWidth, ItemRow + Selected, Selected,
-                    BootEntries[DefaultEntry].Name,
-                    BootEntries[DefaultEntry].IsExternal,
-                    BootEntries[DefaultEntry].IsFolder,
-                    TRUE
-                    );
         TimeOutSeconds = 0;
+        break;
       } else if (KeyIndex == OC_INPUT_DOWN) {
-        PrintEntry (ItemCol, ItemCol + MaxStrWidth, ItemRow + Selected, Selected,
-                    BootEntries[DefaultEntry].Name,
-                    BootEntries[DefaultEntry].IsExternal,
-                    BootEntries[DefaultEntry].IsFolder,
-                    FALSE
-                    );
         DefaultEntry = Selected < (VisibleIndex - 1) ? VisibleList[Selected + 1] : 0;
-        Selected = DefaultEntry;
-        PrintEntry (ItemCol, ItemCol + MaxStrWidth, ItemRow + Selected, Selected,
-                    BootEntries[DefaultEntry].Name,
-                    BootEntries[DefaultEntry].IsExternal,
-                    BootEntries[DefaultEntry].IsFolder,
-                    TRUE
-                    );
         TimeOutSeconds = 0;
+        break;
       } else if (KeyIndex != OC_INPUT_INVALID && (UINTN)KeyIndex < VisibleIndex) {
         ASSERT (KeyIndex >= 0);
         *ChosenBootEntry = &BootEntries[VisibleList[KeyIndex]];
@@ -369,9 +320,11 @@ OcShowSimpleBootMenu (
         TimeOutSeconds = 0;
       }
       
-      if (!TimeoutExpired) {
-        TimeoutExpired = ShowTimeOutMessage (TimeOutSeconds, (Columns - 52) / 2, ItemRow + Count + 2);
+      if (TimeOutSeconds == 0) {
+        break;
       }
+      
+      ShowTimeOutMessage (TimeOutSeconds, (Columns - 52) / 2, ItemRow + Count + 2);
     }
   }
 
