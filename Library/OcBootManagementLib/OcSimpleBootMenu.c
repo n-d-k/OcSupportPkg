@@ -29,6 +29,14 @@
 #include <Library/UefiLib.h>
 
 STATIC
+BOOLEAN
+mAllowSetDefault;
+
+STATIC
+UINTN
+mDefaultEntry;
+
+STATIC
 VOID
 ClearLines (
   IN UINTN        LeftColumn,
@@ -43,7 +51,7 @@ ClearLines (
   String = AllocateZeroPool ((RightColumn - (LeftColumn - 1)) * sizeof (CHAR16));
   ASSERT (String != NULL);
   
-  gST->ConOut->SetAttribute (gST->ConOut, EFI_TEXT_ATTR (EFI_LIGHTGRAY, EFI_BLACK));
+  gST->ConOut->SetAttribute (gST->ConOut, EFI_TEXT_ATTR (EFI_DARKGRAY, EFI_BLACK));
   
   for (Index = 0; Index < (RightColumn - LeftColumn) ; ++Index) {
     String[Index] = 0x20;
@@ -118,7 +126,7 @@ DrawFrame (
 
 STATIC
 VOID
-ShowBannerAt (
+PrintBanner (
   IN UINTN               Col,
   IN UINTN               Row
   )
@@ -143,14 +151,15 @@ ShowBannerAt (
 
 STATIC
 VOID
-ShowDateAt (
-  IN UINTN               Col,
+PrintDateTime (
+  IN UINTN               Columns,
   IN UINTN               Row
   )
 {
   EFI_STATUS         Status;
   EFI_TIME           DateTime;
-  CHAR16             DateStr[24];
+  CHAR16             DateStr[11];
+  CHAR16             TimeStr[11];
   UINTN              Hour;
   CHAR16             *Str;
   
@@ -164,18 +173,20 @@ ShowDateAt (
     if (Hour > 12) {
       Hour = Hour - 12;
     }
-    UnicodeSPrint (DateStr, sizeof (DateStr), L"%02u/%02u/%04u %02u:%02u:%02u %s",
-                   DateTime.Month, DateTime.Day, DateTime.Year, Hour, DateTime.Minute, DateTime.Second, Str);
-    ClearLines (Col, Col + sizeof (DateStr), Row, Row);
-    gST->ConOut->SetAttribute (gST->ConOut, EFI_TEXT_ATTR (EFI_DARKGRAY, EFI_BLACK));
-    gST->ConOut->SetCursorPosition (gST->ConOut, Col, Row);
+    UnicodeSPrint (DateStr, sizeof (DateStr), L"%02u/%02u/%04u", DateTime.Month, DateTime.Day, DateTime.Year);
+    UnicodeSPrint (TimeStr, sizeof (TimeStr), L"%02u:%02u:%02u%s", Hour, DateTime.Minute, DateTime.Second, Str);
+    ClearLines (Columns - 13, Columns - 3, Row, Row);
+    gST->ConOut->SetCursorPosition (gST->ConOut, Columns - 13, Row);
     gST->ConOut->OutputString (gST->ConOut, DateStr);
+    ClearLines (Columns - 13, Columns - 3, Row + 1, Row + 1);
+    gST->ConOut->SetCursorPosition (gST->ConOut, Columns - 13, Row + 1);
+    gST->ConOut->OutputString (gST->ConOut, TimeStr);
   }
 }
 
 STATIC
 VOID
-ShowOcVersionAt (
+PrintOcVersion (
   IN CONST CHAR8         *String,
   IN UINTN               Col,
   IN UINTN               Row
@@ -200,8 +211,48 @@ ShowOcVersionAt (
 }
 
 STATIC
+VOID
+PrintDefaultBootMode (
+  IN UINTN               Col,
+  IN UINTN               Row
+  )
+{
+  gST->ConOut->SetAttribute (gST->ConOut, EFI_TEXT_ATTR (EFI_DARKGRAY, EFI_BLACK));
+  gST->ConOut->SetCursorPosition (gST->ConOut, Col, Row);
+  gST->ConOut->OutputString (gST->ConOut, L"Auto default:");
+  gST->ConOut->OutputString (gST->ConOut, mAllowSetDefault ? L"Off" : L"On");
+}
+
+STATIC
+VOID
+PrintBootMenuHeader (
+  IN UINTN               Col,
+  IN UINTN               Row,
+  IN UINTN               MaxStrWidth
+  )
+{
+  CHAR16                 Char[2];
+  UINTN                  Index;
+  
+  Char[1] = '\0';
+  
+  Char[0] = BOXDRAW_DOUBLE_HORIZONTAL;
+  
+  gST->ConOut->SetAttribute (gST->ConOut, EFI_TEXT_ATTR (EFI_DARKGRAY, EFI_BLACK));
+  gST->ConOut->SetCursorPosition (gST->ConOut, Col, Row);
+  
+  for (Index = 0; Index < MaxStrWidth; ++Index) {
+    gST->ConOut->OutputString (gST->ConOut, Char);
+  }
+  
+  gST->ConOut->SetAttribute (gST->ConOut, EFI_TEXT_ATTR (EFI_LIGHTGRAY, EFI_BLACK));
+  gST->ConOut->SetCursorPosition (gST->ConOut, Col + (MaxStrWidth - 12) / 2, Row);
+  gST->ConOut->OutputString (gST->ConOut, L" BOOT MENU ");
+}
+
+STATIC
 BOOLEAN
-ShowTimeOutMessage (
+PrintTimeOutMessage (
   IN UINTN           Timeout,
   IN UINTN           Col,
   IN UINTN           Row
@@ -240,6 +291,7 @@ PrintEntry (
 {
   EFI_SIMPLE_TEXT_OUTPUT_PROTOCOL    *ConOut;
   CHAR16                             Code[3];
+  UINTN                              CursorPos;
   
   ConOut  = gST->ConOut;
   Code[0] = 0x20;
@@ -250,7 +302,7 @@ PrintEntry (
   ConOut->SetCursorPosition (ConOut, LeftColumn, Row);
   ConOut->SetAttribute (ConOut, EFI_TEXT_ATTR (Highlighted ? EFI_BLACK : EFI_LIGHTGRAY, Highlighted ? EFI_LIGHTGRAY : EFI_BLACK));
   ConOut->OutputString (ConOut, Code);
-  ConOut->OutputString (ConOut, L". ");
+  ConOut->OutputString (ConOut, (mAllowSetDefault && mDefaultEntry == Selected) ? L".*" : L". ");
   ConOut->OutputString (ConOut, Name);
   if (Ext) {
     ConOut->OutputString (ConOut, L" (ext)");
@@ -258,8 +310,10 @@ PrintEntry (
   if (Dmg) {
     ConOut->OutputString (ConOut, L" (dmg)");
   }
-  while (ConOut->Mode->CursorColumn < RightColumn) {
+  CursorPos = ConOut->Mode->CursorColumn;
+  while (CursorPos < RightColumn) {
     ConOut->OutputString (ConOut, L" ");
+    ++CursorPos;
   }
 }
 
@@ -306,11 +360,13 @@ OcShowSimpleBootMenu (
   BOOLEAN                            SetDefault;
   BOOLEAN                            TimeoutExpired;
   
-  VisibleIndex   = 0;
-  ShowAll        = FALSE;
-  MaxStrWidth    = 0;
-  TimeOutSeconds = Context->TimeoutSeconds;
-  TimeoutExpired = FALSE;
+  VisibleIndex     = 0;
+  ShowAll          = FALSE;
+  MaxStrWidth      = 0;
+  TimeoutExpired   = FALSE;
+  TimeOutSeconds   = Context->TimeoutSeconds;
+  mAllowSetDefault = Context->AllowSetDefault;
+  mDefaultEntry    = DefaultEntry;
   
   KeyMap = OcAppleKeyMapInstallProtocols (FALSE);
   if (KeyMap == NULL) {
@@ -346,13 +402,15 @@ OcShowSimpleBootMenu (
   ConOut->ClearScreen (ConOut);
   ConOut->SetAttribute (ConOut, EFI_TEXT_ATTR (EFI_DARKGRAY, EFI_BLACK));
   DrawFrame (Columns, Rows);
-  ShowBannerAt (BannerCol, 1);
-  ShowDateAt (3, Rows - 2);
-  ShowOcVersionAt (Context->TitleSuffix, Columns, Rows - 2);
+  PrintBanner (BannerCol, 1);
+  PrintDateTime (Columns, 1);
+  PrintOcVersion (Context->TitleSuffix, Columns, Rows - 2);
+  PrintDefaultBootMode (3, Rows -2);
+  PrintBootMenuHeader (ItemCol - 2, ItemRow - 2, MaxStrWidth + 4);
   
   while (TRUE) {
     if (!TimeoutExpired) {
-      TimeoutExpired = ShowTimeOutMessage (TimeOutSeconds, (Columns - 52) / 2, ItemRow + Count + 2);
+      TimeoutExpired = PrintTimeOutMessage (TimeOutSeconds, (Columns - 52) / 2, ItemRow + Count + 2);
       TimeOutSeconds = TimeoutExpired ? 10000 : TimeOutSeconds;
     }
     ClearLines (ItemCol, ItemCol + MaxStrWidth, ItemRow, ItemRow + VisibleIndex);
@@ -448,11 +506,11 @@ OcShowSimpleBootMenu (
       }
       
       if (!TimeoutExpired) {
-        ShowDateAt (3, Rows - 2);
-        TimeoutExpired = ShowTimeOutMessage (TimeOutSeconds, (Columns - 52) / 2, ItemRow + Count + 2);
+        PrintDateTime (Columns, 1);
+        TimeoutExpired = PrintTimeOutMessage (TimeOutSeconds, (Columns - 52) / 2, ItemRow + Count + 2);
         TimeOutSeconds = TimeoutExpired ? 10000 : TimeOutSeconds;
       } else {
-        ShowDateAt (3, Rows - 2);
+        PrintDateTime (Columns, 1);
       }
     }
   }
