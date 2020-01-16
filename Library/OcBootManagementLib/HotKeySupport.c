@@ -26,7 +26,7 @@
 #include <Library/UefiBootServicesTableLib.h>
 #include <Library/UefiRuntimeServicesTableLib.h>
 
-VOID
+INTN
 OcLoadPickerHotKeys (
   IN OUT OC_PICKER_CONTEXT  *Context
   )
@@ -36,7 +36,8 @@ OcLoadPickerHotKeys (
 
   UINTN                              NumKeys;
   APPLE_MODIFIER_MAP                 Modifiers;
-  APPLE_KEY_CODE                     Keys[8];
+  APPLE_KEY_CODE                     Keys[OC_KEY_MAP_DEFAULT_SIZE];
+  APPLE_KEY_CODE                     KeyCode;
 
   BOOLEAN                            HasCommand;
   BOOLEAN                            HasEscape;
@@ -45,6 +46,9 @@ OcLoadPickerHotKeys (
   BOOLEAN                            HasKeyR;
   BOOLEAN                            HasKeyW;
   BOOLEAN                            HasKeyX;
+  INTN                               KeyNumber;
+  
+  KeyNumber = -1;
 
   Status = gBS->LocateProtocol (
     &gAppleKeyMapAggregatorProtocolGuid,
@@ -54,7 +58,7 @@ OcLoadPickerHotKeys (
 
   if (EFI_ERROR (Status)) {
     DEBUG ((DEBUG_ERROR, "OCB: Missing AppleKeyMapAggregator - %r\n", Status));
-    return;
+    return KeyNumber;
   }
 
   NumKeys = ARRAY_SIZE (Keys);
@@ -67,7 +71,7 @@ OcLoadPickerHotKeys (
 
   if (EFI_ERROR (Status)) {
     DEBUG ((DEBUG_ERROR, "OCB: GetKeyStrokes - %r\n", Status));
-    return;
+    return KeyNumber;
   }
 
   //
@@ -108,6 +112,12 @@ OcLoadPickerHotKeys (
     DEBUG ((DEBUG_INFO, "OCB: ESC causes picker to show as OC extension\n"));
     Context->PickerCommand = OcPickerShowPicker;
   } else {
+    STATIC_ASSERT (AppleHidUsbKbUsageKeyOne + 8 == AppleHidUsbKbUsageKeyNine, "Unexpected encoding");
+    for (KeyCode = AppleHidUsbKbUsageKeyOne; KeyCode <= AppleHidUsbKbUsageKeyNine; ++KeyCode) {
+      if (OcKeyMapHasKey (Keys, NumKeys, KeyCode)) {
+        KeyNumber = (INTN) (KeyCode - AppleHidUsbKbUsageKeyOne);
+      }
+    }
     //
     // In addition to these overrides we always have ShowPicker = YES in config.
     // The following keys are not implemented:
@@ -119,6 +129,8 @@ OcLoadPickerHotKeys (
     // T - Target disk mode, simply not supported (and bad for security).
     //
   }
+  
+  return KeyNumber;
 }
 
 INTN

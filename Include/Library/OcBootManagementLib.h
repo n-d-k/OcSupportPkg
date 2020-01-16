@@ -629,7 +629,7 @@ OcIsAppleHibernateWake (
 
   @param[in,out]  Context       Picker context.
 **/
-VOID
+INTN
 OcLoadPickerHotKeys (
   IN OUT OC_PICKER_CONTEXT  *Context
   );
@@ -671,12 +671,14 @@ OcWaitForAppleKeyIndex (
   Install missing boot policy, scan, and show simple boot menu.
 
   @param[in]  Context       Picker context.
+  @param[in]  HotkeyNumber    Hotkey Number.
 
   @retval does not return unless a fatal error happened.
 **/
 EFI_STATUS
 OcRunSimpleBootPicker (
-  IN  OC_PICKER_CONTEXT  *Context
+  IN  OC_PICKER_CONTEXT  *Context,
+  IN  INTN               HotkeyNumber
   );
 
 /**

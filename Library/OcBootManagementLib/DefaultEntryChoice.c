@@ -779,10 +779,10 @@ OcGetDefaultBootEntry (
     }
   } else {
     //
-    // Checking for Nvram efi-boot-device-data for last booted entry, and set default boot entry to the same one if possible. strictly for Osx and Windows for now.
+    // Checking for Nvram efi-last-boot-device-data for last booted entry, and set default boot entry to the same one if possible. strictly for Osx and Windows for now.
     //
     Status = GetVariable2 (
-               L"efi-boot-device-data",
+               L"efi-last-boot-device-data",
                &gAppleBootVariableGuid,
                (VOID **)&UefiDevicePath,
                &UefiDevicePathSize
@@ -790,14 +790,14 @@ OcGetDefaultBootEntry (
     if (!EFI_ERROR (Status) && IsDevicePathValid (UefiDevicePath, UefiDevicePathSize)) {
       DevicePathText = ConvertDevicePathToText (UefiDevicePath, FALSE, FALSE);
       if (DevicePathText != NULL) {
-        DEBUG ((DEBUG_INFO, "OCB: efi-boot-device-data: %s\n", DevicePathText));
+        DEBUG ((DEBUG_INFO, "OCB: efi-last-boot-device-data: %s\n", DevicePathText));
         FreePool (DevicePathText);
       }
       
       for (Index = 0; Index < NumBootEntries; ++Index) {
         if (BootEntries[Index].Type == OcBootWindows || BootEntries[Index].Type == OcBootApple) {
           if (GetDevicePathSize (BootEntries[Index].DevicePath) == UefiDevicePathSize && CompareMem (BootEntries[Index].DevicePath, UefiDevicePath, UefiDevicePathSize) == 0) {
-            DEBUG ((DEBUG_INFO, "OCB: Found a match, boot entry (%u) with efi-boot-device-data (%r/%u)\n", (UINT32) Index, (UINT32) UefiDevicePathSize, (UINT32) GetDevicePathSize (BootEntries[Index].DevicePath)));
+            DEBUG ((DEBUG_INFO, "OCB: Found a match, boot entry (%u) with efi-last-boot-device-data (%r/%u)\n", (UINT32) Index, (UINT32) UefiDevicePathSize, (UINT32) GetDevicePathSize (BootEntries[Index].DevicePath)));
             if (BootEntries[Index].Type != BootEntries[(UINTN) BootEntryIndex].Type || Index != (UINTN) BootEntryIndex) {
               BootEntryIndex = (UINT32) Index;
             }
@@ -815,7 +815,7 @@ OcGetDefaultBootEntry (
   return BootEntryIndex;
 }
 //
-// Update the efi-boot-device-data with provided device path.
+// Update the efi-last-boot-device-data with provided device path.
 //
 STATIC
 VOID
@@ -829,7 +829,7 @@ InternalReportLastBootedEntry (
   CHAR16                    *DevicePathText;
 
   Status = GetVariable2 (
-    L"efi-boot-device-data",
+    L"efi-last-boot-device-data",
     &gAppleBootVariableGuid,
     (VOID **)&UefiDevicePath,
     &UefiDevicePathSize
@@ -837,14 +837,14 @@ InternalReportLastBootedEntry (
   if (!EFI_ERROR (Status) && IsDevicePathValid (UefiDevicePath, UefiDevicePathSize)) {
     DevicePathText = ConvertDevicePathToText (UefiDevicePath, FALSE, FALSE);
     if (DevicePathText != NULL) {
-      DEBUG ((DEBUG_INFO, "OCB: efi-boot-device-data: %s\n", DevicePathText));
+      DEBUG ((DEBUG_INFO, "OCB: efi-last-boot-device-data: %s\n", DevicePathText));
       FreePool (DevicePathText);
     }
   }
   if (GetDevicePathSize (DevicePath) != UefiDevicePathSize || CompareMem (DevicePath, UefiDevicePath, UefiDevicePathSize) != 0) {
-    DEBUG ((DEBUG_INFO, "OCB: Overwriting efi-boot-device-data (%r/%u)\n", (UINT32) UefiDevicePathSize, (UINT32) GetDevicePathSize (DevicePath)));
+    DEBUG ((DEBUG_INFO, "OCB: Overwriting efi-last-boot-device-data (%r/%u)\n", (UINT32) UefiDevicePathSize, (UINT32) GetDevicePathSize (DevicePath)));
     gRT->SetVariable (
-      L"efi-boot-device-data",
+      L"efi-last-boot-device-data",
       &gAppleBootVariableGuid,
       EFI_VARIABLE_BOOTSERVICE_ACCESS
         | EFI_VARIABLE_RUNTIME_ACCESS
@@ -853,7 +853,7 @@ InternalReportLastBootedEntry (
       DevicePath
       );
   } else {
-    DEBUG ((DEBUG_INFO, "OCB: Accepting same efi-boot-device-data\n"));
+    DEBUG ((DEBUG_INFO, "OCB: Accepting same efi-last-boot-device-data\n"));
   }
   
   if (UefiDevicePath != NULL) {
@@ -992,7 +992,7 @@ InternalLoadBootEntry (
 
   if (!EFI_ERROR (Status)) {
     //
-    // Updating nvram efi-boot-device-data for Osx and Windows boot type.
+    // Updating nvram efi-last-boot-device-data for Osx and Windows boot type.
     //
     if ((BootEntry->Type == OcBootApple && !Context->AllowSetDefault) || (BootEntry->Type == OcBootWindows && !Context->AllowSetDefault)) {
       InternalReportLastBootedEntry (DevicePath);

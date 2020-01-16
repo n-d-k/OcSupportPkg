@@ -278,7 +278,7 @@ InternalGetLastBootedEntry (
   UefiDevicePath = NULL;
 
   Status = GetVariable2 (
-             L"efi-boot-device-data",
+             L"efi-last-boot-device-data",
              &gAppleBootVariableGuid,
              (VOID **)&UefiDevicePath,
              &UefiDevicePathSize

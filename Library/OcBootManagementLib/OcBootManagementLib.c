@@ -180,7 +180,8 @@ OcShowSimplePasswordRequest (
 
 EFI_STATUS
 OcRunSimpleBootPicker (
-  IN OC_PICKER_CONTEXT  *Context
+  IN OC_PICKER_CONTEXT  *Context,
+  IN INTN               HotkeyNumber
   )
 {
   EFI_STATUS                         Status;
@@ -192,6 +193,7 @@ OcRunSimpleBootPicker (
   INTN                               DefaultEntry;
 
   Chosen = NULL;
+  DefaultEntry = HotkeyNumber;
   
   AppleBootPolicy = OcAppleBootPolicyInstallProtocol (FALSE);
   if (AppleBootPolicy == NULL) {
@@ -219,11 +221,11 @@ OcRunSimpleBootPicker (
       Context->PickerCommand = OcPickerDefault;
     }
   } else {
-    OcLoadPickerHotKeys (Context);
+      DefaultEntry = DefaultEntry >= 0 ?  DefaultEntry : OcLoadPickerHotKeys (Context);
   }
   
   if (Context->PickerCommand != OcPickerShowPicker
-    && Context->PickerCommand != OcPickerResetNvram) {
+    && Context->PickerCommand != OcPickerResetNvram && DefaultEntry < 0) {
     DEBUG ((DEBUG_INFO, "OCB: Checking Nvram for default or last booted entry....\n"));
     Chosen = InternalGetLastBootedEntry();
     if (Chosen !=NULL) {
@@ -264,17 +266,19 @@ OcRunSimpleBootPicker (
 
       DEBUG ((
         DEBUG_INFO,
-        "OCB: Performing OcShowSimpleBootMenu... %d\n",
-        Context->PollAppleHotKeys
+        "OCB: Performing OcShowSimpleBootMenu... %d - %d entries found\n",
+        Context->PollAppleHotKeys,
+        EntryCount
         ));
       
-      if (Context->PickerCommand == OcPickerDefault) {
-        OcLoadPickerHotKeys (Context);
+      if (DefaultEntry < 0) {
+        DefaultEntry = OcLoadPickerHotKeys (Context);
+        HotkeyNumber = DefaultEntry;
       }
       
-      DefaultEntry = OcGetDefaultBootEntry (Context, Entries, EntryCount);
+      DefaultEntry = (DefaultEntry >= 0 && DefaultEntry < EntryCount) ?  DefaultEntry : OcGetDefaultBootEntry (Context, Entries, EntryCount);
 
-      if (Context->PickerCommand == OcPickerShowPicker) {
+      if (Context->PickerCommand == OcPickerShowPicker && HotkeyNumber < 0) {
         Status = OcShowSimpleBootMenu (
           Context,
           Entries,
