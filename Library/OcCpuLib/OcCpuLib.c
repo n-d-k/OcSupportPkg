@@ -15,6 +15,7 @@
 #include <PiDxe.h>
 
 #include <IndustryStandard/AppleSmBios.h>
+#include <Protocol/FrameworkMpService.h>
 #include <Protocol/MpService.h>
 #include <Library/BaseLib.h>
 #include <Library/BaseMemoryLib.h>
@@ -31,66 +32,50 @@
 
 STATIC
 EFI_STATUS
-ScanThreadCount (
-  OUT OC_CPU_INFO  *Cpu
+ScanMpServices (
+  IN  EFI_MP_SERVICES_PROTOCOL  *MpServices,
+  OUT OC_CPU_INFO               *Cpu,
+  OUT UINTN                     *NumberOfProcessors,
+  OUT UINTN                     *NumberOfEnabledProcessors
   )
 {
   EFI_STATUS                 Status;
-  EFI_MP_SERVICES_PROTOCOL   *MpServices;
   UINTN                      Index;
-  UINTN                      NumberOfProcessors;
-  UINTN                      NumberOfEnabledProcessors;
   EFI_PROCESSOR_INFORMATION  Info;
 
-  Cpu->PackageCount = 1;
-  Cpu->CoreCount    = 1;
-  Cpu->ThreadCount  = 1;
+  ASSERT (MpServices != NULL);
+  ASSERT (Cpu != NULL);
+  ASSERT (NumberOfProcessors != NULL);
+  ASSERT (NumberOfEnabledProcessors != NULL);
 
-  Status = gBS->LocateProtocol (
-    &gEfiMpServiceProtocolGuid,
-    NULL,
-    (VOID **) &MpServices
-    );
-
-  if (EFI_ERROR (Status)) {
-    DEBUG ((DEBUG_INFO, "OCCPU: No MP services - %r\n", Status));
-    return Status;
-  }
-
-  NumberOfProcessors = 0;
-  NumberOfEnabledProcessors = 0;
   Status = MpServices->GetNumberOfProcessors (
     MpServices,
-    &NumberOfProcessors,
-    &NumberOfEnabledProcessors
+    NumberOfProcessors,
+    NumberOfEnabledProcessors
     );
-
-  DEBUG ((
-    DEBUG_INFO,
-    "OCCPU: MP services threads %u (enabled %u) - %r\n",
-    (UINT32) NumberOfProcessors,
-    (UINT32) NumberOfEnabledProcessors,
-    Status
-    ));
 
   if (EFI_ERROR (Status)) {
     return Status;
   }
 
-  if (NumberOfProcessors == 0) {
+  if (*NumberOfProcessors == 0) {
     return EFI_NOT_FOUND;
   }
 
   //
   // This code assumes that all CPUs have same amount of cores and threads.
   //
-  for (Index = 0; Index < NumberOfProcessors; ++Index) {
+  for (Index = 0; Index < *NumberOfProcessors; ++Index) {
     Status = MpServices->GetProcessorInfo (MpServices, Index, &Info);
 
     if (EFI_ERROR (Status)) {
-      //
-      // It might make sense to error and exit here.
-      //
+      DEBUG ((
+        DEBUG_INFO,
+        "OCCPU: Failed to get info for processor %Lu - %r\n",
+        (UINT64) Index,
+        Status
+        ));
+
       continue;
     }
 
@@ -105,6 +90,165 @@ ScanThreadCount (
     if (Info.Location.Thread + 1 >= Cpu->ThreadCount) {
       Cpu->ThreadCount = (UINT16) (Info.Location.Thread + 1);
     }
+  }
+
+  return Status;
+}
+
+STATIC
+EFI_STATUS
+ScanFrameworkMpServices (
+  IN  FRAMEWORK_EFI_MP_SERVICES_PROTOCOL  *FrameworkMpServices,
+  OUT OC_CPU_INFO                         *Cpu,
+  OUT UINTN                               *NumberOfProcessors,
+  OUT UINTN                               *NumberOfEnabledProcessors
+  )
+{
+  EFI_STATUS           Status;
+  UINTN                Index;
+  EFI_MP_PROC_CONTEXT  Context;
+  UINTN                ContextSize;
+
+  ASSERT (FrameworkMpServices != NULL);
+  ASSERT (Cpu != NULL);
+  ASSERT (NumberOfProcessors != NULL);
+  ASSERT (NumberOfEnabledProcessors != NULL);
+
+  Status = FrameworkMpServices->GetGeneralMPInfo (
+    FrameworkMpServices,
+    NumberOfProcessors,
+    NULL,
+    NumberOfEnabledProcessors,
+    NULL,
+    NULL
+    );
+
+  if (EFI_ERROR (Status)) {
+    return Status;
+  }
+
+  if (*NumberOfProcessors == 0) {
+    return EFI_NOT_FOUND;
+  }
+
+  //
+  // This code assumes that all CPUs have same amount of cores and threads.
+  //
+  for (Index = 0; Index < *NumberOfProcessors; ++Index) {
+    ContextSize = sizeof (Context);
+
+    Status = FrameworkMpServices->GetProcessorContext (
+      FrameworkMpServices,
+      Index,
+      &ContextSize,
+      &Context
+      );
+
+    if (EFI_ERROR (Status)) {
+      DEBUG ((
+        DEBUG_INFO,
+        "OCCPU: Failed to get context for processor %Lu - %r\n",
+        (UINT64) Index,
+        Status
+        ));
+
+      continue;
+    }
+
+    if (Context.PackageNumber + 1 >= Cpu->PackageCount) {
+      Cpu->PackageCount = (UINT16) (Context.PackageNumber + 1);
+    }
+
+    //
+    // According to the FrameworkMpServices header, EFI_MP_PROC_CONTEXT.NumberOfCores is the
+    // zero-indexed physical core number for the current processor. However, Apple appears to
+    // set this to the total number of physical cores (observed on Xserve3,1 with 2x Xeon X5550).
+    //
+    // This number may not be accurate; on MacPro5,1 with 2x Xeon X5690, NumberOfCores is 16 when
+    // it should be 12 (even though NumberOfProcessors is correct). Regardless, CoreCount and
+    // ThreadCount will be corrected in ScanIntelProcessor.
+    //
+    // We will follow Apple's implementation, as the FrameworkMpServices fallback was added for
+    // legacy Macs.
+    //
+    if (Context.NumberOfCores >= Cpu->CoreCount) {
+      Cpu->CoreCount = (UINT16) (Context.NumberOfCores);
+    }
+
+    //
+    // Similarly, EFI_MP_PROC_CONTEXT.NumberOfThreads is supposed to be the zero-indexed logical
+    // thread number for the current processor. On Xserve3,1 and MacPro5,1 this was set to 2
+    // (presumably to indicate that there are 2 threads per physical core).
+    //
+    if (Context.NumberOfCores * Context.NumberOfThreads >= Cpu->ThreadCount) {
+      Cpu->ThreadCount = (UINT16) (Context.NumberOfCores * Context.NumberOfThreads);
+    }
+  }
+
+  return Status;
+}
+
+STATIC
+EFI_STATUS
+ScanThreadCount (
+  OUT OC_CPU_INFO  *Cpu
+  )
+{
+  EFI_STATUS                          Status;
+  EFI_MP_SERVICES_PROTOCOL            *MpServices;
+  FRAMEWORK_EFI_MP_SERVICES_PROTOCOL  *FrameworkMpServices;
+  UINTN                               NumberOfProcessors;
+  UINTN                               NumberOfEnabledProcessors;
+
+  Cpu->PackageCount = 1;
+  Cpu->CoreCount    = 1;
+  Cpu->ThreadCount  = 1;
+  NumberOfProcessors = 0;
+  NumberOfEnabledProcessors = 0;
+
+  Status = gBS->LocateProtocol (
+    &gEfiMpServiceProtocolGuid,
+    NULL,
+    (VOID **) &MpServices
+    );
+
+  if (EFI_ERROR (Status)) {
+    Status = gBS->LocateProtocol (
+      &gFrameworkEfiMpServiceProtocolGuid,
+      NULL,
+      (VOID **) &FrameworkMpServices
+      );
+
+    if (EFI_ERROR (Status)) {
+      DEBUG ((DEBUG_INFO, "OCCPU: No MP services - %r\n", Status));
+      return Status;
+    }
+
+    Status = ScanFrameworkMpServices (
+      FrameworkMpServices,
+      Cpu,
+      &NumberOfProcessors,
+      &NumberOfEnabledProcessors
+      );
+  } else {
+    Status = ScanMpServices (
+      MpServices,
+      Cpu,
+      &NumberOfProcessors,
+      &NumberOfEnabledProcessors
+      );
+  }
+
+  DEBUG ((
+    DEBUG_INFO,
+    "OCCPU: MP services threads %Lu (enabled %Lu) - %r\n",
+    (UINT64) NumberOfProcessors,
+    (UINT64) NumberOfEnabledProcessors,
+    Status
+    ));
+
+  if (EFI_ERROR (Status)) {
+    return Status;
   }
 
   DEBUG ((
@@ -139,6 +283,7 @@ ScanIntelProcessor (
   MSR_SANDY_BRIDGE_PKG_CST_CONFIG_CONTROL_REGISTER  PkgCstConfigControl;
   MSR_IA32_PERF_STATUS_REGISTER                     PerfStatus;
   MSR_NEHALEM_PLATFORM_INFO_REGISTER                PlatformInfo;
+  OC_CPU_GENERATION                                 CpuGeneration;
   MSR_NEHALEM_TURBO_RATIO_LIMIT_REGISTER            TurboLimit;
   UINT16                                            CoreCount;
   CONST CHAR8                                       *TimerSourceType;
@@ -161,7 +306,7 @@ ScanIntelProcessor (
   }
 
   //
-  // When the CPU is virtualized and cpuid invtsc is enabled, then we already get 
+  // When the CPU is virtualized and cpuid invtsc is enabled, then we already get
   // the information we want outside the function, skip anyway.
   // Things may be different in other hypervisors, but should work with QEMU/VMWare for now.
   //
@@ -171,10 +316,17 @@ ScanIntelProcessor (
     //
     if (Cpu->Model >= CPU_MODEL_NEHALEM) {
       PerfStatus.Uint64 = AsmReadMsr64 (MSR_IA32_PERF_STATUS);
-      Cpu->CurBusRatio = (UINT8) (PerfStatus.Bits.State >> 8U);
       PlatformInfo.Uint64 = AsmReadMsr64 (MSR_NEHALEM_PLATFORM_INFO);
       Cpu->MinBusRatio = (UINT8) PlatformInfo.Bits.MaximumEfficiencyRatio;
       Cpu->MaxBusRatio = (UINT8) PlatformInfo.Bits.MaximumNonTurboRatio;
+      CpuGeneration = OcCpuGetGeneration ();
+
+      if (CpuGeneration == OcCpuGenerationNehalem
+        || CpuGeneration == OcCpuGenerationWestmere) {
+        Cpu->CurBusRatio = (UINT8) PerfStatus.Bits.State;
+      } else {
+        Cpu->CurBusRatio = (UINT8) (PerfStatus.Bits.State >> 8U);
+      }
     } else if (Cpu->Model >= CPU_MODEL_PENRYN) {
       PerfStatus.Uint64 = AsmReadMsr64 (MSR_IA32_PERF_STATUS);
       Cpu->MaxBusRatio = (UINT8) (RShiftU64 (PerfStatus.Uint64, 8) & 0x1FU);
@@ -430,7 +582,7 @@ ScanAmdProcessor (
     //
     // When under virtualization this information is already available to us.
     //
-    if (Cpu->CPUFrequencyFromVMT == 0) { 
+    if (Cpu->CPUFrequencyFromVMT == 0) {
       //
       // Sometimes incorrect hypervisor configuration will lead to dividing by zero.
       //
@@ -576,7 +728,7 @@ OcCpuScanProcessor (
     ));
 
   //
-  // If we are under virtualization and cpuid invtsc is enabled, we can just read 
+  // If we are under virtualization and cpuid invtsc is enabled, we can just read
   // TSCFrequency and FSBFrequency from VMWare Timing node instead of reading MSR
   // (which hypervisors may not implemented yet), at least in QEMU/VMWare it works.
   // Source:
@@ -597,7 +749,7 @@ OcCpuScanProcessor (
 
       Cpu->CPUFrequency = Cpu->CPUFrequencyFromVMT;
       //
-      // We can caculate Bus Ratio here
+      // We can calculate Bus Ratio here
       //
       Cpu->MaxBusRatio = (UINT8)DivU64x32 (Cpu->CPUFrequency, (UINT32)Cpu->FSBFrequency);
       //
@@ -702,15 +854,15 @@ OcCpuCorrectFlexRatio (
   }
 }
 
-BOOLEAN
-OcIsSandyOrIvy (
+OC_CPU_GENERATION
+OcCpuGetGeneration (
   VOID
   )
 {
   CPU_MICROCODE_PROCESSOR_SIGNATURE  Sig;
-  BOOLEAN                            SandyOrIvy;
   UINT32                             CpuFamily;
   UINT32                             CpuModel;
+  OC_CPU_GENERATION                  CpuGeneration;
 
   Sig.Uint32 = 0;
 
@@ -726,15 +878,72 @@ OcIsSandyOrIvy (
     CpuModel |= Sig.Bits.ExtendedModel << 4;
   }
 
-  SandyOrIvy = CpuFamily == 6 && (CpuModel == 0x2A || CpuModel == 0x3A);
+  CpuGeneration = OcCpuGenerationUnknown;
+  if (CpuFamily == 6) {
+    switch (CpuModel) {
+      case CPU_MODEL_PENRYN:
+        CpuGeneration = OcCpuGenerationPenryn;
+        break;
+      case CPU_MODEL_NEHALEM:
+      case CPU_MODEL_FIELDS:
+      case CPU_MODEL_DALES:
+      case CPU_MODEL_NEHALEM_EX:
+        CpuGeneration = OcCpuGenerationNehalem;
+        break;
+      case CPU_MODEL_DALES_32NM:
+      case CPU_MODEL_WESTMERE:
+      case CPU_MODEL_WESTMERE_EX:
+        CpuGeneration = OcCpuGenerationWestmere;
+        break;
+      case CPU_MODEL_SANDYBRIDGE:
+      case CPU_MODEL_JAKETOWN:
+        CpuGeneration = OcCpuGenerationSandyBridge;
+        break;
+      case CPU_MODEL_IVYBRIDGE:
+      case CPU_MODEL_IVYBRIDGE_EP:
+        CpuGeneration = OcCpuGenerationIvyBridge;
+        break;
+      case CPU_MODEL_HASWELL:
+      case CPU_MODEL_HASWELL_EP:
+      case CPU_MODEL_HASWELL_ULT:
+      case CPU_MODEL_CRYSTALWELL:
+        CpuGeneration = OcCpuGenerationHaswell;
+        break;
+      case CPU_MODEL_BROADWELL:
+      case CPU_MODEL_BROADWELL_EP:
+      case CPU_MODEL_BRYSTALWELL:
+        CpuGeneration = OcCpuGenerationBroadwell;
+        break;
+      case CPU_MODEL_SKYLAKE:
+      case CPU_MODEL_SKYLAKE_DT:
+      case CPU_MODEL_SKYLAKE_W:
+        CpuGeneration = OcCpuGenerationSkylake;
+        break;
+      case CPU_MODEL_KABYLAKE:
+      case CPU_MODEL_KABYLAKE_DT:
+        //
+        // Kaby has 0x9 stepping, and Coffee use 0xA / 0xB stepping.
+        //
+        if (Sig.Bits.Stepping == 9) {
+          CpuGeneration = OcCpuGenerationKabyLake;
+        } else {
+          CpuGeneration = OcCpuGenerationCoffeeLake;
+        }
+        break;
+      case CPU_MODEL_CANNONLAKE:
+        CpuGeneration = OcCpuGenerationCannonLake;
+        break;
+    }
+  }
 
   DEBUG ((
     DEBUG_VERBOSE,
-    "OCCPU: Discovered CpuFamily %d CpuModel %d SandyOrIvy %a\n",
+    "OCCPU: Discovered CpuFamily %d CpuModel %d CpuStepping %d CpuGeneration %d\n",
     CpuFamily,
     CpuModel,
-    SandyOrIvy ? "YES" : "NO"
+    Sig.Bits.Stepping,
+    CpuGeneration
     ));
 
-  return SandyOrIvy;
+  return CpuGeneration;
 }
