@@ -327,6 +327,10 @@ OcRunSimpleBootPicker (
       //
       if (EFI_ERROR (Status)) {
         gBS->Stall (SECONDS_TO_MICROSECONDS (5));
+        //
+        // Show picker on first failure.
+        //
+        Context->PickerCommand = OcPickerShowPicker;
       }
       //
       // Ensure that we flush all pressed keys after the application.
