@@ -264,61 +264,6 @@ internalFillCustomBootEntries (
   return EntryIndex;
 }
 
-OC_BOOT_ENTRY *
-InternalGetLastBootedEntry (
-  VOID
-  )
-{
-  EFI_STATUS                       Status;
-  OC_BOOT_ENTRY                    *Entry;
-  CHAR16                           *DevicePathText;
-  EFI_DEVICE_PATH_PROTOCOL         *UefiDevicePath;
-  UINTN                            UefiDevicePathSize;
-  
-  UefiDevicePath = NULL;
-
-  Status = GetVariable2 (
-             L"efi-last-boot-device-data",
-             &gAppleBootVariableGuid,
-             (VOID **)&UefiDevicePath,
-             &UefiDevicePathSize
-             );
-
-  if (!EFI_ERROR (Status) && IsDevicePathValid (UefiDevicePath, UefiDevicePathSize)) {
-    Entry = AllocateZeroPool (sizeof (OC_BOOT_ENTRY));
-    if (Entry == NULL) {
-      DEBUG ((DEBUG_INFO, "OCB: Can't allocate memory for Fast Entry\n"));
-      FreePool (UefiDevicePath);
-      return NULL;
-    }
-    
-    DevicePathText = ConvertDevicePathToText (UefiDevicePath, FALSE, FALSE);
-    if (DevicePathText != NULL) {
-      if (StrStr(DevicePathText, L"\\EFI\\Microsoft\\Boot") != NULL) {
-        Entry->Name = AllocateCopyPool (L_STR_SIZE (L"Last booted Windows"), L"Last booted Windows");
-        Entry->Type = OcBootWindows;
-      } else if (StrStr(DevicePathText, L"\\System\\Library\\CoreServices\\boot.efi") != NULL) {
-        Entry->Name = AllocateCopyPool (L_STR_SIZE (L"Last booted macOS"), L"Last booted macOS");
-        Entry->Type = OcBootApple;
-      } else {
-        FreePool (DevicePathText);
-        FreePool (UefiDevicePath);
-        return NULL;
-      }
-      Entry->DevicePath = UefiDevicePath;
-      DEBUG ((DEBUG_INFO, "OCB: Found 1: %s\n", DevicePathText));
-      FreePool (DevicePathText);
-      return Entry;
-    }
-  }
-  
-  if (UefiDevicePath != NULL) {
-    FreePool (UefiDevicePath);
-  }
-  
-  return NULL;
-}
-
 EFI_STATUS
 OcScanForBootEntries (
   IN  APPLE_BOOT_POLICY_PROTOCOL  *BootPolicy,

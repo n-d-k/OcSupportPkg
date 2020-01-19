@@ -122,12 +122,4 @@ InternalSystemActionResetNvram (
   VOID
   );
 
-/**
-  This function generate and return entry ptr from last booted entry.
-**/
-OC_BOOT_ENTRY *
-InternalGetLastBootedEntry (
-  VOID
-  );
-
 #endif // BOOT_MANAGEMENET_INTERNAL_H

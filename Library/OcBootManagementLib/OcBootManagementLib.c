@@ -191,8 +191,8 @@ OcRunSimpleBootPicker (
   OC_BOOT_ENTRY                      *Entries;
   UINTN                              EntryCount;
   INTN                               DefaultEntry;
+  INTN                               CurrentDefault;
 
-  Chosen = NULL;
   DefaultEntry = HotkeyNumber;
   
   AppleBootPolicy = OcAppleBootPolicyInstallProtocol (FALSE);
@@ -223,95 +223,79 @@ OcRunSimpleBootPicker (
   } else {
       DefaultEntry = DefaultEntry >= 0 ?  DefaultEntry : OcLoadPickerHotKeys (Context);
   }
-  
-  if (Context->PickerCommand != OcPickerShowPicker
-    && Context->PickerCommand != OcPickerResetNvram && DefaultEntry < 0) {
-    DEBUG ((DEBUG_INFO, "OCB: Checking Nvram for default or last booted entry....\n"));
-    Chosen = InternalGetLastBootedEntry();
-    if (Chosen !=NULL) {
-      if ((Chosen->Type == OcBootApple && Context->PickerCommand == OcPickerBootWindows)
-        || (Chosen->Type == OcBootWindows && Context->PickerCommand == OcPickerBootApple)) {
-        OcResetBootEntry (Chosen);
-        FreePool (Chosen);
-        Chosen = NULL;
-        DEBUG ((DEBUG_INFO, "OCB: Entry requested does not match!\n"));
-      } else {
-        DEBUG ((DEBUG_INFO, "OCB: Will boot from default or last booted entry!\n"));
-      }
-    }
-  }
 
   while (TRUE) {
-    if (Chosen == NULL) {
-      DEBUG ((DEBUG_INFO, "OCB: Performing OcScanForBootEntries...\n"));
+    DEBUG ((DEBUG_INFO, "OCB: Performing OcScanForBootEntries...\n"));
 
-      Status = OcScanForBootEntries (
-        AppleBootPolicy,
+    Status = OcScanForBootEntries (
+      AppleBootPolicy,
+      Context,
+      &Entries,
+      &EntryCount,
+      NULL,
+      TRUE
+      );
+
+    if (EFI_ERROR (Status)) {
+      DEBUG ((DEBUG_ERROR, "OCB: OcScanForBootEntries failure - %r\n", Status));
+      return Status;
+    }
+
+    if (EntryCount == 0) {
+      DEBUG ((DEBUG_WARN, "OCB: OcScanForBootEntries has no entries\n"));
+      return EFI_NOT_FOUND;
+    }
+
+    DEBUG ((
+      DEBUG_INFO,
+      "OCB: Performing OcShowSimpleBootMenu... %d - %d entries found\n",
+      Context->PollAppleHotKeys,
+      EntryCount
+      ));
+    
+    if (DefaultEntry < 0) {
+      DefaultEntry = OcLoadPickerHotKeys (Context);
+      HotkeyNumber = DefaultEntry;
+    }
+    
+    CurrentDefault = OcGetDefaultBootEntry (Context, Entries, EntryCount);
+    DefaultEntry = (DefaultEntry >= 0 && DefaultEntry < EntryCount) ?  DefaultEntry : CurrentDefault;
+
+    if (Context->PickerCommand == OcPickerShowPicker && HotkeyNumber < 0) {
+      Status = OcShowSimpleBootMenu (
         Context,
-        &Entries,
-        &EntryCount,
-        NULL,
-        TRUE
+        Entries,
+        EntryCount,
+        DefaultEntry,
+        &Chosen
         );
-
-      if (EFI_ERROR (Status)) {
-        DEBUG ((DEBUG_ERROR, "OCB: OcScanForBootEntries failure - %r\n", Status));
-        return Status;
+    } else if (Context->PickerCommand == OcPickerResetNvram) {
+      return InternalSystemActionResetNvram ();
+    } else {
+      Chosen = &Entries[DefaultEntry];
+      if (CurrentDefault != DefaultEntry && !Context->AllowSetDefault && !Chosen->Hidden) {
+        Status = OcSetDefaultBootEntry (Context, Chosen);
+        DEBUG ((DEBUG_INFO, "OCB: New default was set - %r\n", Status));
       }
+      Status = EFI_SUCCESS;
+    }
 
-      if (EntryCount == 0) {
-        DEBUG ((DEBUG_WARN, "OCB: OcScanForBootEntries has no entries\n"));
-        return EFI_NOT_FOUND;
-      }
+    if (EFI_ERROR (Status)) {
+      DEBUG ((DEBUG_ERROR, "OCB: OcShowSimpleBootMenu failed - %r\n", Status));
+      OcFreeBootEntries (Entries, EntryCount);
+      return Status;
+    }
 
+    Context->TimeoutSeconds = 0;
+
+    if (!EFI_ERROR (Status)) {
       DEBUG ((
         DEBUG_INFO,
-        "OCB: Performing OcShowSimpleBootMenu... %d - %d entries found\n",
-        Context->PollAppleHotKeys,
-        EntryCount
+        "OCB: Select to boot from %s (T:%d|F:%d)\n",
+        Chosen->Name,
+        Chosen->Type,
+        Chosen->IsFolder
         ));
-      
-      if (DefaultEntry < 0) {
-        DefaultEntry = OcLoadPickerHotKeys (Context);
-        HotkeyNumber = DefaultEntry;
-      }
-      
-      DefaultEntry = (DefaultEntry >= 0 && DefaultEntry < EntryCount) ?  DefaultEntry : OcGetDefaultBootEntry (Context, Entries, EntryCount);
-
-      if (Context->PickerCommand == OcPickerShowPicker && HotkeyNumber < 0) {
-        Status = OcShowSimpleBootMenu (
-          Context,
-          Entries,
-          EntryCount,
-          DefaultEntry,
-          &Chosen
-          );
-      } else if (Context->PickerCommand == OcPickerResetNvram) {
-        return InternalSystemActionResetNvram ();
-      } else {
-        Chosen = &Entries[DefaultEntry];
-        Status = EFI_SUCCESS;
-      }
-
-      if (EFI_ERROR (Status)) {
-        DEBUG ((DEBUG_ERROR, "OCB: OcShowSimpleBootMenu failed - %r\n", Status));
-        OcFreeBootEntries (Entries, EntryCount);
-        return Status;
-      }
-
-      Context->TimeoutSeconds = 0;
-
-      if (!EFI_ERROR (Status)) {
-        DEBUG ((
-          DEBUG_INFO,
-          "OCB: Should boot from %s (T:%d|F:%d)\n",
-          Chosen->Name,
-          Chosen->Type,
-          Chosen->IsFolder
-          ));
-      }
-    } else {
-      Status = EFI_SUCCESS;
     }
 
     if (!EFI_ERROR (Status)) {
@@ -337,12 +321,6 @@ OcRunSimpleBootPicker (
       // This resolves the problem of application-pressed keys being used to control the menu.
       //
       OcKeyMapFlush (KeyMap, 0, TRUE);
-    }
-    
-    if (Chosen != NULL){
-      OcResetBootEntry (Chosen);
-      FreePool (Chosen);
-      Chosen = NULL;
     }
     
     if (Entries != NULL) {

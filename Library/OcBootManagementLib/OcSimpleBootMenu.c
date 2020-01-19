@@ -358,6 +358,7 @@ OcShowSimpleBootMenu (
   UINTN                              StrWidth;
   APPLE_KEY_MAP_AGGREGATOR_PROTOCOL  *KeyMap;
   BOOLEAN                            SetDefault;
+  BOOLEAN                            NewDefault;
   BOOLEAN                            TimeoutExpired;
   
   VisibleIndex     = 0;
@@ -370,7 +371,7 @@ OcShowSimpleBootMenu (
   
   KeyMap = OcAppleKeyMapInstallProtocols (FALSE);
   if (KeyMap == NULL) {
-    DEBUG ((DEBUG_ERROR, "OCB: Missing AppleKeyMapAggregator\n"));
+    DEBUG ((DEBUG_ERROR, "OCSBM: Missing AppleKeyMapAggregator\n"));
     return EFI_UNSUPPORTED;
   }
   
@@ -417,6 +418,7 @@ OcShowSimpleBootMenu (
     for (Index = 0, VisibleIndex = 0; Index < MIN (Count, OC_INPUT_MAX); ++Index) {
       if ((BootEntries[Index].Hidden && !ShowAll)
           || (BootEntries[Index].Type == OcBootSystem && !ShowAll)) {
+        DefaultEntry = DefaultEntry == Index ? 0 : DefaultEntry;
         continue;
       }
       if (DefaultEntry == Index) {
@@ -441,8 +443,14 @@ OcShowSimpleBootMenu (
           && !BootEntries[DefaultEntry].Hidden
           && Context->AllowSetDefault
           && SetDefault;
-        if (SetDefault) {
-          OcSetDefaultBootEntry (BootEntries[DefaultEntry].DevicePath);
+        NewDefault = BootEntries[DefaultEntry].DevicePath != NULL
+          && !BootEntries[DefaultEntry].Hidden
+          && !Context->AllowSetDefault
+          && mDefaultEntry != DefaultEntry;
+        
+        if (SetDefault || NewDefault) {
+          Status = OcSetDefaultBootEntry (Context, &BootEntries[DefaultEntry]);
+          DEBUG ((DEBUG_INFO, "OCSBM: Setting default - %r\n", Status));
         }
         RestoreConsoleMode (SavedConsoleMode);
         return EFI_SUCCESS;
@@ -496,8 +504,13 @@ OcShowSimpleBootMenu (
           && !BootEntries[VisibleList[KeyIndex]].Hidden
           && Context->AllowSetDefault
           && SetDefault;
-        if (SetDefault) {
-          OcSetDefaultBootEntry (BootEntries[VisibleList[KeyIndex]].DevicePath);
+        NewDefault = BootEntries[VisibleList[KeyIndex]].DevicePath != NULL
+          && !BootEntries[VisibleList[KeyIndex]].Hidden
+          && !Context->AllowSetDefault
+          && mDefaultEntry != VisibleList[KeyIndex];
+        if (SetDefault || NewDefault) {
+          Status = OcSetDefaultBootEntry (Context, &BootEntries[VisibleList[KeyIndex]]);
+          DEBUG ((DEBUG_INFO, "OCSBM: Setting default - %r\n", Status));
         }
         RestoreConsoleMode (SavedConsoleMode);
         return EFI_SUCCESS;

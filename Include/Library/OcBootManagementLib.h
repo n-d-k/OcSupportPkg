@@ -832,12 +832,15 @@ OcDeleteVariables (
   );
 
 /**
-  Set default entry .
-  @param[in]      *DevicePath         DevicePath.
+  Set default entry to passed entry.
+  @param[in]      Context          Picker context.
+  @param[in,out]  Entry            Entry to make default.
+  @retval EFI_SUCCESS on success.
 **/
-VOID
+EFI_STATUS
 OcSetDefaultBootEntry (
-  IN EFI_DEVICE_PATH_PROTOCOL   *DevicePath
+  IN OC_PICKER_CONTEXT  *Context,
+  IN OC_BOOT_ENTRY      *Entry
   );
 
 #endif // OC_BOOT_MANAGEMENT_LIB_H

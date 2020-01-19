@@ -20,6 +20,7 @@
 #include <Guid/OcVariables.h>
 
 #include <Protocol/LoadedImage.h>
+#include <Protocol/SimpleFileSystem.h>
 
 #include <Library/BaseMemoryLib.h>
 #include <Library/DebugLib.h>
@@ -162,7 +163,7 @@ VOID
 InternalDebugBootEnvironment (
   IN CONST UINT16             *BootOrder,
   IN EFI_GUID                 *BootGuid,
-  IN UINTN                    BootOrderSize
+  IN UINTN                    BootOrderCount
   )
 {
   EFI_STATUS                Status;
@@ -206,7 +207,7 @@ InternalDebugBootEnvironment (
   DEBUG ((DEBUG_INFO, "OCB: Dumping BootOrder\n"));
   
   for (Predefined = 0; Predefined < 2; ++Predefined) {
-    for (Index = 0; Index < (BootOrderSize / sizeof (*BootOrder)); ++Index) {
+    for (Index = 0; Index < BootOrderCount; ++Index) {
       UefiDevicePath = InternalGetBootOptionData (
                          BootOrder[Index],
                          BootGuid,
@@ -238,12 +239,11 @@ InternalDebugBootEnvironment (
 
       FreePool (UefiDevicePath);
     }
-
     //
     // Redo with predefined.
     //
-    BootOrder     = &ApplePredefinedVariables[0];
-    BootOrderSize = sizeof (ApplePredefinedVariables);
+    BootOrder      = &ApplePredefinedVariables[0];
+    BootOrderCount = ARRAY_SIZE (ApplePredefinedVariables);
     DEBUG ((DEBUG_INFO, "OCB: Predefined list\n"));
   }
 }
@@ -351,6 +351,40 @@ InternalIsAppleLegacyLoadApp (
   return FALSE;
 }
 
+STATIC
+UINT16 *
+InternalGetBootOrder (
+  IN  EFI_GUID  *BootVariableGuid,
+  OUT UINTN     *BootOrderCount
+  )
+{
+  EFI_STATUS  Status;
+  UINT16      *BootOrder;
+  UINTN       BootOrderSize;
+
+  Status = GetVariable2 (
+    EFI_BOOT_ORDER_VARIABLE_NAME,
+    BootVariableGuid,
+    (VOID **) &BootOrder,
+    &BootOrderSize
+    );
+
+  if (EFI_ERROR (Status)) {
+    DEBUG ((DEBUG_INFO, "OCB: BootOrder is unavailable - %r\n", Status));
+    *BootOrderCount = 0;
+    return NULL;
+  }
+
+  if (BootOrderSize < sizeof (*BootOrder) || BootOrderSize % sizeof (*BootOrder) != 0) {
+    DEBUG ((DEBUG_WARN, "OCB: BootOrder is malformed - %x\n", (UINT32) BootOrderSize));
+    FreePool (BootOrder);
+    *BootOrderCount = 0;
+    return NULL;
+  }
+
+  *BootOrderCount = BootOrderSize / sizeof (*BootOrder);
+  return BootOrder;
+}
 /**
   Obtain default entry from the list.
 
@@ -380,7 +414,7 @@ InternalGetDefaultBootEntry (
   BOOLEAN                  IsBootNext;
 
   UINT16                   *BootOrder;
-  UINTN                    BootOrderSize;
+  UINTN                    BootOrderCount;
 
   EFI_DEVICE_PATH_PROTOCOL *UefiDevicePath;
   EFI_DEVICE_PATH_PROTOCOL *UefiRemainingDevicePath;
@@ -421,25 +455,17 @@ InternalGetDefaultBootEntry (
   if (Status == EFI_NOT_FOUND) {
     DEBUG ((DEBUG_INFO, "OCB: BootNext has not been found\n"));
 
-    Status = GetVariable2 (
-               EFI_BOOT_ORDER_VARIABLE_NAME,
-               BootVariableGuid,
-               (VOID **)&BootOrder,
-               &BootOrderSize
-               );
-    if (EFI_ERROR (Status)) {
-      DEBUG ((DEBUG_INFO, "OCB: BootOrder is unavailable - %r\n", Status));
-      return NULL;
-    }
+    BootOrder = InternalGetBootOrder (
+      BootVariableGuid,
+      &BootOrderCount
+      );
 
-    if (BootOrderSize < sizeof (*BootOrder)) {
-      DEBUG ((DEBUG_WARN, "OCB: BootOrder is malformed - %x\n", (UINT32) BootOrderSize));
-      FreePool (BootOrder);
+    if (BootOrder == NULL) {
       return NULL;
     }
 
     DEBUG_CODE_BEGIN ();
-    InternalDebugBootEnvironment (BootOrder, BootVariableGuid, BootOrderSize);
+    InternalDebugBootEnvironment (BootOrder, BootVariableGuid, BootOrderCount);
     DEBUG_CODE_END ();
 
     UefiDevicePath = InternalGetBootOptionData (
@@ -467,7 +493,7 @@ InternalGetDefaultBootEntry (
       //
       FreePool (UefiDevicePath);
 
-      if (BootOrderSize < (2 * sizeof (*BootOrder))) {
+      if (BootOrderCount < 2) {
         FreePool (BootOrder);
         return NULL;
       }
@@ -715,16 +741,9 @@ OcGetDefaultBootEntry (
   IN     UINTN              NumBootEntries
   )
 {
-  EFI_STATUS                Status;
   UINT32                    BootEntryIndex;
   OC_BOOT_ENTRY             *BootEntry;
   UINTN                     Index;
-  EFI_DEVICE_PATH_PROTOCOL  *UefiDevicePath;
-  UINTN                     UefiDevicePathSize;
-  CHAR16                    *DevicePathText;
-  
-  UefiDevicePath = NULL;
-  DevicePathText = NULL;
 
   BootEntry = InternalGetDefaultBootEntry (
     BootEntries,
@@ -777,97 +796,202 @@ OcGetDefaultBootEntry (
         }
       }
     }
-  } else {
-    //
-    // Checking for Nvram efi-last-boot-device-data for last booted entry, and set default boot entry to the same one if possible. strictly for Osx and Windows for now.
-    //
-    Status = GetVariable2 (
-               L"efi-last-boot-device-data",
-               &gAppleBootVariableGuid,
-               (VOID **)&UefiDevicePath,
-               &UefiDevicePathSize
-               );
-    if (!EFI_ERROR (Status) && IsDevicePathValid (UefiDevicePath, UefiDevicePathSize)) {
-      DevicePathText = ConvertDevicePathToText (UefiDevicePath, FALSE, FALSE);
-      if (DevicePathText != NULL) {
-        DEBUG ((DEBUG_INFO, "OCB: efi-last-boot-device-data: %s\n", DevicePathText));
-        FreePool (DevicePathText);
-      }
-      
-      for (Index = 0; Index < NumBootEntries; ++Index) {
-        if (BootEntries[Index].Type == OcBootWindows || BootEntries[Index].Type == OcBootApple) {
-          if (GetDevicePathSize (BootEntries[Index].DevicePath) == UefiDevicePathSize && CompareMem (BootEntries[Index].DevicePath, UefiDevicePath, UefiDevicePathSize) == 0) {
-            DEBUG ((DEBUG_INFO, "OCB: Found a match, boot entry (%u) with efi-last-boot-device-data (%r/%u)\n", (UINT32) Index, (UINT32) UefiDevicePathSize, (UINT32) GetDevicePathSize (BootEntries[Index].DevicePath)));
-            if (BootEntries[Index].Type != BootEntries[(UINTN) BootEntryIndex].Type || Index != (UINTN) BootEntryIndex) {
-              BootEntryIndex = (UINT32) Index;
-            }
-            break;
-          }
-        }
-      }
-    }
-  }
-  
-  if (UefiDevicePath != NULL) {
-    FreePool (UefiDevicePath);
   }
   
   return BootEntryIndex;
 }
-//
-// Update the efi-last-boot-device-data with provided device path.
-//
-STATIC
-VOID
-InternalReportLastBootedEntry (
-  IN EFI_DEVICE_PATH_PROTOCOL  *DevicePath
+
+EFI_STATUS
+OcSetDefaultBootEntry (
+  IN OC_PICKER_CONTEXT  *Context,
+  IN OC_BOOT_ENTRY      *Entry
   )
 {
-  EFI_STATUS                Status;
-  EFI_DEVICE_PATH_PROTOCOL  *UefiDevicePath;
-  UINTN                     UefiDevicePathSize;
-  CHAR16                    *DevicePathText;
+  EFI_STATUS       Status;
+  EFI_DEVICE_PATH  *BootOptionDevicePath;
+  EFI_DEVICE_PATH  *BootOptionRemainingDevicePath;
+  EFI_HANDLE       DeviceHandle;
+  OC_BOOT_ENTRY    *MatchedEntry;
+  EFI_GUID         *BootVariableGuid;
+  UINT16           *BootOrder;
+  UINT16           *NewBootOrder;
+  UINT16           BootTmp;
+  UINTN            BootOrderCount;
+  UINTN            BootChosenIndex;
+  UINTN            Index;
+  UINTN            DevicePathSize;
+  UINTN            LoadOptionSize;
+  UINTN            LoadOptionNameSize;
+  EFI_LOAD_OPTION  *LoadOption;
 
-  Status = GetVariable2 (
-    L"efi-last-boot-device-data",
-    &gAppleBootVariableGuid,
-    (VOID **)&UefiDevicePath,
-    &UefiDevicePathSize
+  //
+  // Ignore entries without device paths.
+  //
+  if (Entry->DevicePath == NULL) {
+    return EFI_INVALID_PARAMETER;
+  }
+
+  if (Context->CustomBootGuid) {
+    BootVariableGuid = &gOcVendorVariableGuid;
+  } else {
+    BootVariableGuid = &gEfiGlobalVariableGuid;
+  }
+
+  BootOrder = InternalGetBootOrder(
+    BootVariableGuid,
+    &BootOrderCount
     );
-  if (!EFI_ERROR (Status) && IsDevicePathValid (UefiDevicePath, UefiDevicePathSize)) {
-    DevicePathText = ConvertDevicePathToText (UefiDevicePath, FALSE, FALSE);
-    if (DevicePathText != NULL) {
-      DEBUG ((DEBUG_INFO, "OCB: efi-last-boot-device-data: %s\n", DevicePathText));
-      FreePool (DevicePathText);
+
+  MatchedEntry    = NULL;
+  BootChosenIndex = BootOrderCount;
+  for (Index = 0; Index < BootOrderCount; ++Index) {
+    if (BootOrder[Index] == 0x80) {
+      BootChosenIndex = Index;
+    }
+
+    if (MatchedEntry != NULL) {
+      if (BootChosenIndex != BootOrderCount) {
+        break;
+      }
+      continue;
+    }
+
+    BootOptionDevicePath = InternalGetBootOptionData (
+      BootOrder[Index],
+      BootVariableGuid,
+      NULL,
+      NULL,
+      NULL
+      );
+
+    BootOptionRemainingDevicePath = BootOptionDevicePath;
+    Status = gBS->LocateDevicePath (
+      &gEfiSimpleFileSystemProtocolGuid,
+      &BootOptionRemainingDevicePath,
+      &DeviceHandle
+      );
+
+    if (!EFI_ERROR (Status)) {
+      MatchedEntry = InternalGetBootEntryByDevicePath (
+        Entry,
+        1,
+        BootOptionDevicePath,
+        BootOptionRemainingDevicePath,
+        FALSE
+        );
     }
   }
-  if (GetDevicePathSize (DevicePath) != UefiDevicePathSize || CompareMem (DevicePath, UefiDevicePath, UefiDevicePathSize) != 0) {
-    DEBUG ((DEBUG_INFO, "OCB: Overwriting efi-last-boot-device-data (%r/%u)\n", (UINT32) UefiDevicePathSize, (UINT32) GetDevicePathSize (DevicePath)));
-    gRT->SetVariable (
-      L"efi-last-boot-device-data",
-      &gAppleBootVariableGuid,
+
+  if (MatchedEntry == NULL) {
+    //
+    // Write to Boot0080
+    //
+    LoadOptionNameSize = StrSize (Entry->Name);
+    DevicePathSize     = GetDevicePathSize (Entry->DevicePath);
+    LoadOptionSize     = sizeof (EFI_LOAD_OPTION) + LoadOptionNameSize + DevicePathSize;
+
+    LoadOption = AllocatePool (LoadOptionSize);
+    if (LoadOption == NULL) {
+      DEBUG ((DEBUG_INFO, "OCB: Failed to allocate default option (%u)\n", (UINT32) LoadOptionSize));
+      if (BootOrder != NULL) {
+        FreePool (BootOrder);
+      }
+      return EFI_OUT_OF_RESOURCES;
+    }
+
+    LoadOption->Attributes         = LOAD_OPTION_ACTIVE | LOAD_OPTION_CATEGORY_BOOT;
+    LoadOption->FilePathListLength = DevicePathSize;
+    CopyMem (LoadOption + 1, Entry->Name, LoadOptionNameSize);
+    CopyMem ((UINT8 *) (LoadOption + 1) + LoadOptionNameSize, Entry->DevicePath, DevicePathSize);
+
+    Status = gRT->SetVariable (
+      L"Boot0080",
+      BootVariableGuid,
       EFI_VARIABLE_BOOTSERVICE_ACCESS
         | EFI_VARIABLE_RUNTIME_ACCESS
         | EFI_VARIABLE_NON_VOLATILE,
-      GetDevicePathSize (DevicePath),
-      DevicePath
+      LoadOptionSize,
+      LoadOption
       );
-  } else {
-    DEBUG ((DEBUG_INFO, "OCB: Accepting same efi-last-boot-device-data\n"));
-  }
-  
-  if (UefiDevicePath != NULL) {
-    FreePool (UefiDevicePath);
-  }
-}
 
-VOID
-OcSetDefaultBootEntry (
-  IN EFI_DEVICE_PATH_PROTOCOL   *DevicePath
-  )
-{
-  DEBUG ((DEBUG_INFO, "OCB: Setting Default boot entry!\n"));
-  InternalReportLastBootedEntry (DevicePath);
+    FreePool (LoadOption);
+
+    if (EFI_ERROR (Status)) {
+      DEBUG ((
+        DEBUG_INFO,
+        "OCB: Failed to set default entry Boot0080 - %r\n",
+        Status
+        ));
+      if (BootOrder != NULL) {
+        FreePool (BootOrder);
+      }
+      return Status;
+    }
+  } else {
+    DEBUG ((DEBUG_INFO, "OCB: Matched default entry in BootOrder\n"));
+    BootChosenIndex = Index;
+  }
+
+  //
+  // Update BootOrder to contain new option.
+  //
+  if (BootChosenIndex != BootOrderCount) {
+    BootTmp                    = BootOrder[0];
+    BootOrder[0]               = BootOrder[BootChosenIndex];
+    BootOrder[BootChosenIndex] = BootTmp;
+    NewBootOrder               = BootOrder;
+
+    DEBUG ((
+      DEBUG_INFO,
+      "OCB: Found default entry in BootOrder, reordering %X <-> %X\n",
+      NewBootOrder[0],
+      NewBootOrder[BootChosenIndex]
+      ));
+  } else {
+    DEBUG ((
+      DEBUG_INFO,
+      "OCB: Adding default entry Boot0080 to BootOrder\n"
+      ));
+
+    NewBootOrder = AllocatePool ((BootOrderCount + 1) * sizeof (*BootOrder));
+    if (NewBootOrder == NULL) {
+      if (BootOrder != NULL) {
+        FreePool (BootOrder);
+      }
+      return EFI_OUT_OF_RESOURCES;
+    }
+
+    NewBootOrder[0] = 0x80;
+    CopyMem (&NewBootOrder[1], &BootOrder[0], BootOrderCount * sizeof (*BootOrder));
+
+    if (BootOrder != NULL) {
+      FreePool (BootOrder);
+    }
+
+    ++BootOrderCount;
+  }
+
+  Status = gRT->SetVariable (
+    EFI_BOOT_ORDER_VARIABLE_NAME,
+    BootVariableGuid,
+    EFI_VARIABLE_BOOTSERVICE_ACCESS
+      | EFI_VARIABLE_RUNTIME_ACCESS
+      | EFI_VARIABLE_NON_VOLATILE,
+    BootOrderCount * sizeof (*BootOrder),
+    NewBootOrder
+    );
+
+  FreePool (NewBootOrder);
+
+  if (EFI_ERROR (Status)) {
+    DEBUG ((
+      DEBUG_INFO,
+      "OCB: Failed to set default BootOrder - %r\n",
+      Status
+      ));
+  }
+
+  return Status;
 }
 
 EFI_STATUS
@@ -991,13 +1115,6 @@ InternalLoadBootEntry (
   }
 
   if (!EFI_ERROR (Status)) {
-    //
-    // Updating nvram efi-last-boot-device-data for Osx and Windows boot type.
-    //
-    if ((BootEntry->Type == OcBootApple && !Context->AllowSetDefault) || (BootEntry->Type == OcBootWindows && !Context->AllowSetDefault)) {
-      InternalReportLastBootedEntry (DevicePath);
-    }
-    
     OptionalStatus = gBS->HandleProtocol (
                             *EntryHandle,
                             &gEfiLoadedImageProtocolGuid,
