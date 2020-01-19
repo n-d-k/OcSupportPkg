@@ -273,7 +273,10 @@ OcRunSimpleBootPicker (
       return InternalSystemActionResetNvram ();
     } else {
       Chosen = &Entries[DefaultEntry];
-      if (CurrentDefault != DefaultEntry && !Context->AllowSetDefault && !Chosen->Hidden) {
+      if ((CurrentDefault != DefaultEntry && !Context->AllowSetDefault && !Chosen->Hidden)
+          || Context->PickerCommand == OcPickerBootWindows
+          || Context->PickerCommand == OcPickerBootApple
+          ) {
         Status = OcSetDefaultBootEntry (Context, Chosen);
         DEBUG ((DEBUG_INFO, "OCB: New default was set - %r\n", Status));
       }
