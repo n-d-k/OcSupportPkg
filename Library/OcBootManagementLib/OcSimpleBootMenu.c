@@ -473,7 +473,7 @@ OcShowSimpleBootMenu (
                     FALSE
                     );
         DefaultEntry = Selected > 0 ? VisibleList[Selected - 1] : VisibleList[VisibleIndex - 1];
-        Selected = DefaultEntry;
+        Selected = Selected > 0 ? --Selected : VisibleIndex - 1;
         PrintEntry (ItemCol, ItemCol + MaxStrWidth, ItemRow + Selected, Selected,
                     BootEntries[DefaultEntry].Name,
                     BootEntries[DefaultEntry].IsExternal,
@@ -489,7 +489,7 @@ OcShowSimpleBootMenu (
                     FALSE
                     );
         DefaultEntry = Selected < (VisibleIndex - 1) ? VisibleList[Selected + 1] : 0;
-        Selected = DefaultEntry;
+        Selected = Selected < (VisibleIndex - 1) ? ++Selected : 0;
         PrintEntry (ItemCol, ItemCol + MaxStrWidth, ItemRow + Selected, Selected,
                     BootEntries[DefaultEntry].Name,
                     BootEntries[DefaultEntry].IsExternal,
