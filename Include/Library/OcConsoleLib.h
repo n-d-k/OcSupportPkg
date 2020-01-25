@@ -180,4 +180,12 @@ SetConsolePicker (
   IN BOOLEAN             ShowPicker
   );
 
+/**
+  Ensure installed GOP protocol on ConOut handle.
+**/
+VOID
+OcProvideConsoleGop (
+  VOID
+  );
+
 #endif // OC_CONSOLE_LIB_H
