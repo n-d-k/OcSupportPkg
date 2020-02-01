@@ -334,12 +334,12 @@ OcWaitForAppleKeyIndex (
         return OC_INPUT_RETURN;
       }
       
-      if (Keys[0] == AppleHidUsbKbUsageKeyUpArrow) {
+      if (Keys[0] == AppleHidUsbKbUsageKeyUpArrow || Keys[0] == AppleHidUsbKbUsageKeyLeftArrow) {
         OcKeyMapFlush (KeyMap, Keys[0], TRUE);
         return OC_INPUT_UP;
       }
       
-      if (Keys[0] == AppleHidUsbKbUsageKeyDownArrow) {
+      if (Keys[0] == AppleHidUsbKbUsageKeyDownArrow || Keys[0] == AppleHidUsbKbUsageKeyRightArrow) {
         OcKeyMapFlush (KeyMap, Keys[0], TRUE);
         return OC_INPUT_DOWN;
       }
