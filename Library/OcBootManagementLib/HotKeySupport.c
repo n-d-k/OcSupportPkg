@@ -50,6 +50,10 @@ OcLoadPickerHotKeys (
   
   KeyNumber = -1;
 
+  if (Context->TakeoffDelay > 0) {
+    gBS->Stall (Context->TakeoffDelay);
+  }
+
   Status = gBS->LocateProtocol (
     &gAppleKeyMapAggregatorProtocolGuid,
     NULL,
