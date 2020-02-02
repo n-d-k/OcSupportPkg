@@ -90,7 +90,7 @@ EFI_IMAGE_OUTPUT *mMenuImage = NULL;
 
 /*============ User's Color Settings Begin ==============*/
 
-EFI_GRAPHICS_OUTPUT_BLT_PIXEL DarkGray = {0x28, 0x3d, 0x52, 0xff};
+EFI_GRAPHICS_OUTPUT_BLT_PIXEL mTan = {0x28, 0x3d, 0x52, 0xff};
 EFI_GRAPHICS_OUTPUT_BLT_PIXEL mWhitePixel  = {0xff, 0xff, 0xff, 0xff};
 EFI_GRAPHICS_OUTPUT_BLT_PIXEL mBlackPixel  = {0x00, 0x00, 0x00, 0xff};
 EFI_GRAPHICS_OUTPUT_BLT_PIXEL mDarkGray = {0x76, 0x81, 0x85, 0xff};
