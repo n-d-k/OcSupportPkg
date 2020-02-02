@@ -84,6 +84,10 @@ STATIC
 UINTN
 mIconSpaceSize = 136;  // Default 136 pixels space to contain icons with size 128x128, 272 for 256x256 icons size (best for 4k screen).
 
+STATIC
+EFI_SIMPLE_FILE_SYSTEM_PROTOCOL *
+mFileSystem = NULL;
+
 EFI_IMAGE_OUTPUT *mBackgroundImage = NULL;
 EFI_IMAGE_OUTPUT *mMenuImage = NULL;
 
@@ -956,27 +960,44 @@ DecodePNGFile (
   UINTN                            Y;
   EFI_HANDLE                       *Handles;
   UINTN                            HandleCount;
+  UINTN                            Index;
 
   BufferSize = 0;
   HandleCount = 0;
   FileSystem = NULL;
-  Status = gBS->LocateHandleBuffer(ByProtocol, &gEfiPartTypeSystemPartGuid, NULL, &HandleCount, &Handles);
-  if (!EFI_ERROR (Status) && HandleCount > 0) {
-    Status = gBS->HandleProtocol (
-                    Handles[0],
-                    &gEfiSimpleFileSystemProtocolGuid,
-                    (VOID **) &FileSystem
-                    );
-    if (EFI_ERROR (Status)) {
-      DEBUG ((DEBUG_WARN, "OCUI: Failed to locate filesystem - %r\n", Status));
-      return NULL;
+  Buffer = NULL;
+  
+  if (mFileSystem == NULL) {
+    Status = gBS->LocateHandleBuffer(ByProtocol, &gEfiPartTypeSystemPartGuid, NULL, &HandleCount, &Handles);
+    if (!EFI_ERROR (Status) && HandleCount > 0) {
+      for (Index = 0; Index < HandleCount; ++Index) {
+        Status = gBS->HandleProtocol (
+                        Handles[Index],
+                        &gEfiSimpleFileSystemProtocolGuid,
+                        (VOID **) &FileSystem
+                        );
+        if (EFI_ERROR (Status)) {
+          continue;
+        }
+        
+        Buffer = ReadFile (FileSystem, FilePath, &BufferSize, BASE_16MB);
+        if (Buffer != NULL) {
+          mFileSystem = FileSystem;
+          DEBUG ((DEBUG_INFO, "OCUI: FileSystem found!  Handle(%d) \n", Index));
+          break;
+        }
+        
+      }
+      
+      if (Handles != NULL) {
+        FreePool (Handles);
+      }
     }
-    if (Handles != NULL) {
-      FreePool (Handles);
-    }
+    
+  } else {
+    Buffer = ReadFile (mFileSystem, FilePath, &BufferSize, BASE_16MB);
   }
   
-  Buffer = ReadFile (FileSystem, FilePath, &BufferSize, BASE_16MB);
   if (Buffer == NULL) {
     DEBUG ((DEBUG_ERROR, "OCUI: Failed to locate valid png file - %p!\n", Buffer));
     return NULL;
