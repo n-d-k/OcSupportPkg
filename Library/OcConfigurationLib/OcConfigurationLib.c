@@ -286,6 +286,7 @@ mKernelQuirksSchema[] = {
   OC_SCHEMA_BOOLEAN_IN ("AppleXcpmForceBoost",     OC_GLOBAL_CONFIG, Kernel.Quirks.AppleXcpmForceBoost),
   OC_SCHEMA_BOOLEAN_IN ("CustomSMBIOSGuid",        OC_GLOBAL_CONFIG, Kernel.Quirks.CustomSmbiosGuid),
   OC_SCHEMA_BOOLEAN_IN ("DisableIoMapper",         OC_GLOBAL_CONFIG, Kernel.Quirks.DisableIoMapper),
+  OC_SCHEMA_BOOLEAN_IN ("DummyPowerManagement",    OC_GLOBAL_CONFIG, Kernel.Quirks.DummyPowerManagement),
   OC_SCHEMA_BOOLEAN_IN ("ExternalDiskIcons",       OC_GLOBAL_CONFIG, Kernel.Quirks.ExternalDiskIcons),
   OC_SCHEMA_BOOLEAN_IN ("IncreasePciBarSize",      OC_GLOBAL_CONFIG, Kernel.Quirks.IncreasePciBarSize),
   OC_SCHEMA_BOOLEAN_IN ("LapicKernelPanic",        OC_GLOBAL_CONFIG, Kernel.Quirks.LapicKernelPanic),
@@ -316,17 +317,18 @@ mMiscBlessOverrideSchema = OC_SCHEMA_STRING (NULL);
 STATIC
 OC_SCHEMA
 mMiscConfigurationBootSchema[] = {
-  OC_SCHEMA_STRING_IN  ("ConsoleBehaviourOs",OC_GLOBAL_CONFIG, Misc.Boot.ConsoleBehaviourOs),
-  OC_SCHEMA_STRING_IN  ("ConsoleBehaviourUi",OC_GLOBAL_CONFIG, Misc.Boot.ConsoleBehaviourUi),
-  OC_SCHEMA_STRING_IN  ("ConsoleMode",       OC_GLOBAL_CONFIG, Misc.Boot.ConsoleMode),
-  OC_SCHEMA_STRING_IN  ("HibernateMode",     OC_GLOBAL_CONFIG, Misc.Boot.HibernateMode),
-  OC_SCHEMA_BOOLEAN_IN ("HideSelf",          OC_GLOBAL_CONFIG, Misc.Boot.HideSelf),
-  OC_SCHEMA_BOOLEAN_IN ("PollAppleHotKeys",  OC_GLOBAL_CONFIG, Misc.Boot.PollAppleHotKeys),
-  OC_SCHEMA_STRING_IN  ("Resolution",        OC_GLOBAL_CONFIG, Misc.Boot.Resolution),
-  OC_SCHEMA_BOOLEAN_IN ("ShowPicker",        OC_GLOBAL_CONFIG, Misc.Boot.ShowPicker),
-  OC_SCHEMA_INTEGER_IN ("TakeoffDelay",      OC_GLOBAL_CONFIG, Misc.Boot.TakeoffDelay),
-  OC_SCHEMA_INTEGER_IN ("Timeout",           OC_GLOBAL_CONFIG, Misc.Boot.Timeout),
-  OC_SCHEMA_BOOLEAN_IN ("UsePicker",         OC_GLOBAL_CONFIG, Misc.Boot.UsePicker),
+  OC_SCHEMA_BOOLEAN_IN ("BuiltinTextRenderer", OC_GLOBAL_CONFIG, Misc.Boot.BuiltinTextRenderer),
+  OC_SCHEMA_STRING_IN  ("ConsoleBehaviourOs",  OC_GLOBAL_CONFIG, Misc.Boot.ConsoleBehaviourOs),
+  OC_SCHEMA_STRING_IN  ("ConsoleBehaviourUi",  OC_GLOBAL_CONFIG, Misc.Boot.ConsoleBehaviourUi),
+  OC_SCHEMA_STRING_IN  ("ConsoleMode",         OC_GLOBAL_CONFIG, Misc.Boot.ConsoleMode),
+  OC_SCHEMA_STRING_IN  ("HibernateMode",       OC_GLOBAL_CONFIG, Misc.Boot.HibernateMode),
+  OC_SCHEMA_BOOLEAN_IN ("HideSelf",            OC_GLOBAL_CONFIG, Misc.Boot.HideSelf),
+  OC_SCHEMA_BOOLEAN_IN ("PollAppleHotKeys",    OC_GLOBAL_CONFIG, Misc.Boot.PollAppleHotKeys),
+  OC_SCHEMA_STRING_IN  ("Resolution",          OC_GLOBAL_CONFIG, Misc.Boot.Resolution),
+  OC_SCHEMA_BOOLEAN_IN ("ShowPicker",          OC_GLOBAL_CONFIG, Misc.Boot.ShowPicker),
+  OC_SCHEMA_INTEGER_IN ("TakeoffDelay",        OC_GLOBAL_CONFIG, Misc.Boot.TakeoffDelay),
+  OC_SCHEMA_INTEGER_IN ("Timeout",             OC_GLOBAL_CONFIG, Misc.Boot.Timeout),
+  OC_SCHEMA_BOOLEAN_IN ("UsePicker",           OC_GLOBAL_CONFIG, Misc.Boot.UsePicker),
 };
 
 STATIC
