@@ -977,6 +977,7 @@ DecodePNGFile (
                         (VOID **) &FileSystem
                         );
         if (EFI_ERROR (Status)) {
+          FileSystem = NULL;
           continue;
         }
         
@@ -986,7 +987,7 @@ DecodePNGFile (
           DEBUG ((DEBUG_INFO, "OCUI: FileSystem found!  Handle(%d) \n", Index));
           break;
         }
-        
+        FileSystem = NULL;
       }
       
       if (Handles != NULL) {
