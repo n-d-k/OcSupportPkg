@@ -33,6 +33,7 @@
 #include <Library/UefiLib.h>
 #include <Library/OcPngLib.h>
 #include <Library/OcFileLib.h>
+#include <Library/OcStorageLib.h>
 
 STATIC
 BOOLEAN
@@ -91,7 +92,6 @@ mFileSystem = NULL;
 EFI_IMAGE_OUTPUT *mBackgroundImage = NULL;
 EFI_IMAGE_OUTPUT *mMenuImage = NULL;
 
-STATIC
 BOOLEAN
 mHidePrintText = TRUE;
 /*============ User's Color Settings Begin ==============*/
@@ -1157,8 +1157,8 @@ SwitchIconSelection (
   Xpos = 0;
   Ypos = 0;
   Width = mIconSpaceSize;
-  Height = mIconSpaceSize; // Assuming it's only 1 row first.
-  IconsPerRow = 1; // At least 1 first.
+  Height = Width;
+  IconsPerRow = 1;
   
   for (IconsPerRow = 1; IconsPerRow < IconCount; ++IconsPerRow) {
     Width = Width + mIconSpaceSize;
@@ -1168,10 +1168,9 @@ SwitchIconSelection (
   }
   
   if (IconsPerRow < IconCount) {
-    IsTwoRow = TRUE;  // Definitely 2 rows here
-    Height = mIconSpaceSize * 2;  // Only 2 rows max, more than that menu will be busted anyway due to too many entries to handle.
+    IsTwoRow = TRUE;
+    Height = mIconSpaceSize * 2;
     if (IconIndex <= IconsPerRow) {
-      // It's probably on first row.
       Xpos = (mScreenWidth - Width) / 2 + (mIconSpaceSize * IconIndex);
       Ypos = (mScreenHeight / 2) - mIconSpaceSize;
     } else {
@@ -1513,7 +1512,9 @@ OcShowSimpleBootMenu (
   BOOLEAN                            SetDefault;
   BOOLEAN                            NewDefault;
   BOOLEAN                            TimeoutExpired;
+  OC_STORAGE_CONTEXT                 *Storage;
   
+  Selected         = 0;
   VisibleIndex     = 0;
   ShowAll          = FALSE;
   MaxStrWidth      = 0;
@@ -1521,6 +1522,12 @@ OcShowSimpleBootMenu (
   TimeOutSeconds   = Context->TimeoutSeconds;
   mAllowSetDefault = Context->AllowSetDefault;
   mDefaultEntry    = DefaultEntry;
+  
+  Storage = Context->CustomEntryContext;
+  if (Storage->FileSystem != NULL && mFileSystem == NULL) {
+    mFileSystem = Storage->FileSystem;
+    DEBUG ((DEBUG_INFO, "OCSBM: FileSystem Found!\n"));
+  }
   
   KeyMap = OcAppleKeyMapInstallProtocols (FALSE);
   if (KeyMap == NULL) {
@@ -1548,7 +1555,6 @@ OcShowSimpleBootMenu (
   DEBUG ((DEBUG_INFO, "OCSBM: Resetting console mode to %ux%u - %r\n", Columns, Rows, Status));
   ConOut->EnableCursor (ConOut, FALSE);
   ConOut->ClearScreen (ConOut);
-  
   
   InitScreen ();
   OcClearScreen (mBackgroundPixel);
