@@ -91,7 +91,9 @@ mFileSystem = NULL;
 EFI_IMAGE_OUTPUT *mBackgroundImage = NULL;
 EFI_IMAGE_OUTPUT *mMenuImage = NULL;
 
-
+STATIC
+BOOLEAN
+mHidePrintText = TRUE;
 /*============ User's Color Settings Begin ==============*/
 
 EFI_GRAPHICS_OUTPUT_BLT_PIXEL mTan = {0x28, 0x3d, 0x52, 0xff};
@@ -1352,7 +1354,7 @@ PrintDateTime (
   Hour = 0;
   Status = gRT->GetTime (&DateTime, NULL);
   
-  if (!EFI_ERROR (Status)) {
+  if (!EFI_ERROR (Status) && !mHidePrintText) {
     Hour = (UINTN) DateTime.Hour;
     Str = Hour >= 12 ? L"PM" : L"AM";
     if (Hour > 12) {
@@ -1551,8 +1553,10 @@ OcShowSimpleBootMenu (
   InitScreen ();
   OcClearScreen (mBackgroundPixel);
   PrintDateTime ();
-  PrintDefaultBootMode ();
-  PrintOcVersion (Context->TitleSuffix);
+  if (!mHidePrintText) {
+    PrintDefaultBootMode ();
+    PrintOcVersion (Context->TitleSuffix);
+  }
   
   while (TRUE) {
     if (!TimeoutExpired) {
