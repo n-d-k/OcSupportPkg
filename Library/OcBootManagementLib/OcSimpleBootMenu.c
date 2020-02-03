@@ -92,11 +92,12 @@ mFileSystem = NULL;
 EFI_IMAGE_OUTPUT *mBackgroundImage = NULL;
 EFI_IMAGE_OUTPUT *mMenuImage = NULL;
 
+STATIC
 BOOLEAN
 mHidePrintText = TRUE;
 /*============ User's Color Settings Begin ==============*/
 
-EFI_GRAPHICS_OUTPUT_BLT_PIXEL mTan = {0x28, 0x3d, 0x52, 0xff};
+EFI_GRAPHICS_OUTPUT_BLT_PIXEL mTan = {0x28, 0x3d, 0x52, 0x00};
 EFI_GRAPHICS_OUTPUT_BLT_PIXEL mWhitePixel  = {0xff, 0xff, 0xff, 0xff};
 EFI_GRAPHICS_OUTPUT_BLT_PIXEL mBlackPixel  = {0x00, 0x00, 0x00, 0xff};
 EFI_GRAPHICS_OUTPUT_BLT_PIXEL mDarkGray = {0x76, 0x81, 0x85, 0xff};
@@ -723,12 +724,12 @@ CreateMenuImage (
     return;
   }
   
-  ComposeImage (NewImage, mMenuImage, 0, 0, FALSE, TRUE);
+  ComposeImage (NewImage, mMenuImage, 0, 0, FALSE, FALSE);
   if (mMenuImage != NULL) {
     FreeImage (mMenuImage);
   }
   
-  ComposeImage (NewImage, Icon, Xpos, Ypos, FALSE, TRUE);
+  ComposeImage (NewImage, Icon, Xpos, Ypos, FALSE, FALSE);
   if (Icon != NULL) {
     FreeImage (Icon);
   }
