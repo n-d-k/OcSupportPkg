@@ -1611,6 +1611,7 @@ OcShowSimpleBootMenu (
   ConOut->EnableCursor (ConOut, FALSE);
   ConOut->ClearScreen (ConOut);
   
+  SetScreenResolution ("Max", FALSE);
   InitScreen ();
   OcClearScreen (mBackgroundPixel);
   
