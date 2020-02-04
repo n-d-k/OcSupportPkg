@@ -79,11 +79,19 @@ mTextHeight;
 
 STATIC
 INTN
-mUiScale = 0;  // not actual scale, will be set after getting screen resolution. (16 will be no scaling, 28 will be for 4k screen)
+mTextScale = 0;  // not actual scale, will be set after getting screen resolution. (16 will be no scaling, 28 will be for 4k screen)
+
+STATIC
+INTN
+mUiScale = 0;
 
 STATIC
 UINTN
-mIconSpaceSize = 136;  // Default 136 pixels space to contain icons with size 128x128, 272 for 256x256 icons size (best for 4k screen).
+mIconSpaceSize;  // Default 136 pixels space to contain icons with size 128x128, 272 for 256x256 icons size (best for 4k screen).
+
+STATIC
+UINTN
+mIconPaddingSize;
 
 STATIC
 EFI_SIMPLE_FILE_SYSTEM_PROTOCOL *
@@ -92,13 +100,9 @@ mFileSystem = NULL;
 EFI_IMAGE_OUTPUT *mBackgroundImage = NULL;
 EFI_IMAGE_OUTPUT *mMenuImage = NULL;
 
-STATIC
-BOOLEAN
-mHidePrintText = TRUE;
 /*============ User's Color Settings Begin ==============*/
 
-EFI_GRAPHICS_OUTPUT_BLT_PIXEL mTan = {0x28, 0x3d, 0x52, 0x00};
-EFI_GRAPHICS_OUTPUT_BLT_PIXEL mWhitePixel  = {0xff, 0xff, 0xff, 0xff};
+
 EFI_GRAPHICS_OUTPUT_BLT_PIXEL mBlackPixel  = {0x00, 0x00, 0x00, 0xff};
 EFI_GRAPHICS_OUTPUT_BLT_PIXEL mDarkGray = {0x76, 0x81, 0x85, 0xff};
 EFI_GRAPHICS_OUTPUT_BLT_PIXEL mLowWhitePixel  = {0xb8, 0xbd, 0xbf, 0xff};
@@ -478,7 +482,7 @@ FillImage (
   }
   
 
-  if (IsAlpha) {
+  if (!IsAlpha) {
     FillColor.Reserved = 0;
   }
 
@@ -815,7 +819,7 @@ CreatTextImage (
   }
   
   if (!EFI_ERROR (Status)) {
-    ScaledBlt = CopyScaledImage (Blt, mUiScale);
+    ScaledBlt = CopyScaledImage (Blt, mTextScale);
     if (ScaledBlt == NULL) {
       DEBUG ((DEBUG_INFO, "OCUI: Failed to scale image!\n"));
       if (RowInfoArray != NULL) {
@@ -891,7 +895,7 @@ PrintTextGraphicXY (
                           );
   
   if (!EFI_ERROR (Status)) {
-    ScaledBlt = CopyScaledImage (Blt, mUiScale);
+    ScaledBlt = CopyScaledImage (Blt, mTextScale);
     if (ScaledBlt == NULL) {
       DEBUG ((DEBUG_INFO, "OCUI: Failed to scale image!\n"));
       if (RowInfoArray != NULL) {
@@ -1065,6 +1069,8 @@ CreateIcon (
   CHAR16                 *FilePath;
   EFI_IMAGE_OUTPUT       *Icon;
   EFI_IMAGE_OUTPUT       *NewImage;
+  EFI_IMAGE_OUTPUT       *BaseImage;
+  EFI_IMAGE_OUTPUT       *ScaledImage;
   
   Icon = NULL;
   
@@ -1117,20 +1123,36 @@ CreateIcon (
       break;
   }
   
-  NewImage = CreateFilledImage (mIconSpaceSize, mIconSpaceSize, FALSE, Selected ? mFontColorPixel : mBackgroundPixel);
-  if (NewImage == NULL) {
-    DEBUG ((DEBUG_INFO, "OCUI: Failed create Dummy Icon\n"));
+  BaseImage = CreateFilledImage (mIconSpaceSize - (mIconPaddingSize * 2), mIconSpaceSize - (mIconPaddingSize * 2), FALSE, mBackgroundPixel);
+  if (BaseImage == NULL) {
     return;
   }
   
   Icon = DecodePNGFile (FilePath);
   
   if (Icon != NULL) {
-    ComposeImage (NewImage, Icon, 4, 4, FALSE, FALSE);
+    ScaledImage = CopyScaledImage (Icon, mUiScale);
     if (Icon != NULL) {
-     FreeImage (Icon);
+      FreeImage (Icon);
+    }
+    
+    ComposeImage (BaseImage, ScaledImage, 0, 0, TRUE, FALSE);
+    if (ScaledImage != NULL) {
+      FreeImage (ScaledImage);
     }
   }
+  
+  NewImage = CreateFilledImage (mIconSpaceSize, mIconSpaceSize, FALSE, Selected ? mFontColorPixel : mBackgroundPixel);
+  if (NewImage == NULL) {
+    DEBUG ((DEBUG_INFO, "OCUI: Failed create Dummy Icon\n"));
+    return;
+  }
+  
+  ComposeImage (NewImage, BaseImage, mIconPaddingSize, mIconPaddingSize, TRUE, FALSE);
+  if (BaseImage != NULL) {
+    FreeImage (BaseImage);
+  }
+  
   CreateMenuImage (NewImage, IconCount);
 }
 
@@ -1184,14 +1206,14 @@ SwitchIconSelection (
   }
   /* Done Calulating Xpos and Ypos of current selected icon on screen*/
   
-  Icon = CreateImage (mIconSpaceSize - 8, mIconSpaceSize - 8);
+  Icon = CreateImage (mIconSpaceSize - (mIconPaddingSize * 2), mIconSpaceSize - (mIconPaddingSize * 2));
   if (Icon == NULL) {
     return;
   }
-  TakeImage (Icon, Xpos + 4, Ypos + 4, Icon->Width, Icon->Height);
+  TakeImage (Icon, Xpos + mIconPaddingSize, Ypos + mIconPaddingSize, Icon->Width, Icon->Height);
   
   NewImage = CreateFilledImage (mIconSpaceSize, mIconSpaceSize, FALSE, Selected ? mFontColorPixel : mBackgroundPixel);
-  ComposeImage (NewImage, Icon, 4, 4, FALSE, FALSE);
+  ComposeImage (NewImage, Icon, mIconPaddingSize, mIconPaddingSize, TRUE, FALSE);
   if (Icon != NULL) {
     FreeImage (Icon);
   }
@@ -1305,7 +1327,6 @@ InitScreen (
   if (mGraphicsOutput != NULL) {
     mScreenWidth = mGraphicsOutput->Mode->Info->HorizontalResolution;
     mScreenHeight = mGraphicsOutput->Mode->Info->VerticalResolution;
-    mUiScale = (mUiScale == 0 && mScreenHeight >= 2160) ? 28 : 16;
   } else {
     ASSERT (mUgaDraw != NULL);
     Status = mUgaDraw->GetMode (mUgaDraw, &ScreenWidth, &ScreenHeight, &ColorDepth, &RefreshRate);
@@ -1313,6 +1334,21 @@ InitScreen (
     mScreenHeight = ScreenHeight;
   }
   DEBUG ((DEBUG_INFO, "OCUI: Initialize Graphic Screen...%r\n", Status));
+  
+  mTextScale = (mTextScale == 0 && mScreenHeight >= 2160) ? 28 : 16;
+  if (mUiScale == 0 && mScreenHeight >= 2160) {
+    mUiScale = 28;
+    mIconPaddingSize = 5;
+    mIconSpaceSize = 234;
+  } else if (mUiScale == 0 && mScreenHeight <= 800) {
+    mUiScale = 8;
+    mIconPaddingSize = 3;
+    mIconSpaceSize = 70;
+  } else {
+    mUiScale = 16;
+    mIconPaddingSize = 4;
+    mIconSpaceSize = 136;
+  }
   
   Status = gBS->LocateProtocol (&gEfiHiiFontProtocolGuid, NULL, (VOID **) &mHiiFont);
   
@@ -1340,7 +1376,7 @@ InitScreen (
 STATIC
 VOID
 PrintDateTime (
-  VOID
+  IN BOOLEAN         ShowAll
   )
 {
   EFI_STATUS         Status;
@@ -1354,7 +1390,7 @@ PrintDateTime (
   Hour = 0;
   Status = gRT->GetTime (&DateTime, NULL);
   
-  if (!EFI_ERROR (Status) && !mHidePrintText) {
+  if (!EFI_ERROR (Status) && ShowAll) {
     Hour = (UINTN) DateTime.Hour;
     Str = Hour >= 12 ? L"PM" : L"AM";
     if (Hour > 12) {
@@ -1363,35 +1399,53 @@ PrintDateTime (
     UnicodeSPrint (DateStr, sizeof (DateStr), L"%02u/%02u/%04u", DateTime.Month, DateTime.Day, DateTime.Year);
     UnicodeSPrint (TimeStr, sizeof (TimeStr), L"%02u:%02u:%02u%s", Hour, DateTime.Minute, DateTime.Second, Str);
     PrintTextGraphicXY (mScreenWidth - ((StrLen(DateStr) * mFontWidth) + 10), 5, mFontColorPixelAlt, mBackgroundPixel, DateStr);
-    PrintTextGraphicXY (mScreenWidth - ((StrLen(DateStr) * mFontWidth) + 10), (mUiScale == 16) ? (mFontHeight + 5 + 2) : ((mFontHeight * 2) + 5 + 2), mFontColorPixelAlt, mBackgroundPixel, TimeStr);
+    PrintTextGraphicXY (mScreenWidth - ((StrLen(DateStr) * mFontWidth) + 10), (mTextScale == 16) ? (mFontHeight + 5 + 2) : ((mFontHeight * 2) + 5 + 2), mFontColorPixelAlt, mBackgroundPixel, TimeStr);
+  } else {
+    OcClearScreenArea (mBackgroundPixel, 0, 0, mScreenWidth, mFontHeight * 4);
   }
 }
 
 STATIC
 VOID
 PrintOcVersion (
-  IN CONST CHAR8         *String
+  IN CONST CHAR8         *String,
+  IN BOOLEAN             ShowAll
   )
 {
   CHAR16                 *NewString;
   
   NewString = AsciiStrCopyToUnicode (String, 0);
   
-  if (String != NULL) {
+  if (String != NULL && ShowAll) {
     PrintTextGraphicXY (mScreenWidth - ((StrLen(NewString) * mFontWidth) + 10), mScreenHeight - (mFontHeight + 5), mFontColorPixelAlt, mBackgroundPixel, NewString);
+  } else {
+    OcClearScreenArea (mBackgroundPixel,
+                       mScreenWidth - ((StrLen(NewString) * mFontWidth) * 2),
+                       mScreenHeight - mFontHeight * 2,
+                       (StrLen(NewString) * mFontWidth) * 2,
+                       mFontHeight * 2
+                       );
   }
 }
 
 STATIC
 VOID
 PrintDefaultBootMode (
-  VOID
+  IN BOOLEAN         ShowAll
   )
 {
   CHAR16             String[17];
-  
-  UnicodeSPrint (String, sizeof (String), L"Auto default:%s", mAllowSetDefault ? L"Off" : L"On");
-  PrintTextGraphicXY (10, mScreenHeight - (mFontHeight + 5), mFontColorPixelAlt, mBackgroundPixel, String);
+  if (ShowAll) {
+    UnicodeSPrint (String, sizeof (String), L"Auto default:%s", mAllowSetDefault ? L"Off" : L"On");
+    PrintTextGraphicXY (10, mScreenHeight - (mFontHeight + 5), mFontColorPixelAlt, mBackgroundPixel, String);
+  } else {
+    OcClearScreenArea (mBackgroundPixel,
+                       0,
+                       mScreenHeight - mFontHeight * 2,
+                       mFontWidth * 2 * sizeof (String),
+                       mFontHeight * 2
+                       );
+  }
 }
 
 STATIC
@@ -1559,17 +1613,15 @@ OcShowSimpleBootMenu (
   
   InitScreen ();
   OcClearScreen (mBackgroundPixel);
-  PrintDateTime ();
-  if (!mHidePrintText) {
-    PrintDefaultBootMode ();
-    PrintOcVersion (Context->TitleSuffix);
-  }
   
   while (TRUE) {
     if (!TimeoutExpired) {
       TimeoutExpired = PrintTimeOutMessage (TimeOutSeconds);
       TimeOutSeconds = TimeoutExpired ? 10000 : TimeOutSeconds;
     }
+    PrintDefaultBootMode (ShowAll);
+    PrintOcVersion (Context->TitleSuffix, ShowAll);
+    PrintDateTime (ShowAll);
     for (Index = 0, VisibleIndex = 0; Index < MIN (Count, OC_INPUT_MAX); ++Index) {
       if ((BootEntries[Index].Hidden && !ShowAll)
           || (BootEntries[Index].Type == OcBootSystem && !ShowAll)) {
@@ -1682,11 +1734,11 @@ OcShowSimpleBootMenu (
       }
 
       if (!TimeoutExpired) {
-        PrintDateTime ();
+        PrintDateTime (ShowAll);
         TimeoutExpired = PrintTimeOutMessage (TimeOutSeconds);
         TimeOutSeconds = TimeoutExpired ? 10000 : TimeOutSeconds;
       } else {
-        PrintDateTime ();
+        PrintDateTime (ShowAll);
       }
     }
   }
