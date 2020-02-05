@@ -1414,9 +1414,8 @@ PrintOcVersion (
 {
   CHAR16                 *NewString;
   
-  NewString = AsciiStrCopyToUnicode (String, 0);
-  
   if (String != NULL && ShowAll) {
+    NewString = AsciiStrCopyToUnicode (String, 0);
     PrintTextGraphicXY (mScreenWidth - ((StrLen(NewString) * mFontWidth) + 10), mScreenHeight - (mFontHeight + 5), mFontColorPixelAlt, mBackgroundPixel, NewString);
   } else {
     OcClearScreenArea (mBackgroundPixel,
