@@ -420,7 +420,7 @@ OcScanForBootEntries (
     FreePool (DevPathScanInfos);
     
     if (Describe) {
-      DEBUG ((DEBUG_INFO, "Scanning got %u entries\n", (UINT32) EntryIndex));
+      DEBUG ((DEBUG_INFO, "OCB: Scanning got %u entries\n", (UINT32) EntryIndex));
 
       for (Index = Context->AbsoluteEntryCount; Index < EntryIndex; ++Index) {
         Status = OcDescribeBootEntry (BootPolicy, &Entries[Index]);
@@ -431,7 +431,7 @@ OcScanForBootEntries (
         DEBUG_CODE_BEGIN ();
         DEBUG ((
           DEBUG_INFO,
-          "Entry %u is %s at %s (T:%d|F:%d)\n",
+          "OCB: Entry %u is %s at %s (T:%d|F:%d)\n",
           (UINT32) Index,
           Entries[Index].Name,
           Entries[Index].PathName,
@@ -443,7 +443,7 @@ OcScanForBootEntries (
         if (DevicePathText != NULL) {
           DEBUG ((
             DEBUG_INFO,
-            "Entry %u is %s at dp %s\n",
+            "OCB: Entry %u is %s at dp %s\n",
             (UINT32) Index,
             Entries[Index].Name,
             DevicePathText

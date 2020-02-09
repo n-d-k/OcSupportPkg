@@ -14,6 +14,7 @@
 
 #include "BootManagementInternal.h"
 
+#include <Guid/AppleFile.h>
 #include <Guid/AppleVariable.h>
 #include <Guid/OcVariables.h>
 
@@ -195,6 +196,7 @@ OcRunSimpleBootPicker (
   UINTN                              EntryCount;
   INTN                               DefaultEntry;
   INTN                               CurrentDefault;
+  BOOLEAN                            ForbidApple;
 
   DefaultEntry = HotkeyNumber;
   
@@ -210,6 +212,9 @@ OcRunSimpleBootPicker (
     return EFI_NOT_FOUND;
   }
 
+  //
+  // This one is handled as is for Apple BootPicker for now.
+  //
   if (Context->PickerCommand != OcPickerDefault) {
     Status = Context->RequestPrivilege (
                         Context->PrivilegeContext,
@@ -225,6 +230,14 @@ OcRunSimpleBootPicker (
     }
   } else {
       DefaultEntry = DefaultEntry >= 0 ?  DefaultEntry : OcLoadPickerHotKeys (Context);
+  }
+
+  if (Context->PickerCommand == OcPickerShowPicker && Context->PickerMode == OcPickerModeApple) {
+    Status = OcRunAppleBootPicker ();
+    DEBUG ((DEBUG_INFO, "OCB: Apple BootPicker failed - %r, fallback to builtin\n", Status));
+    ForbidApple = TRUE;
+  } else {
+    ForbidApple = FALSE;
   }
 
   while (TRUE) {
@@ -265,6 +278,12 @@ OcRunSimpleBootPicker (
     DefaultEntry = (DefaultEntry >= 0 && DefaultEntry < EntryCount) ?  DefaultEntry : CurrentDefault;
 
     if (Context->PickerCommand == OcPickerShowPicker && HotkeyNumber < 0) {
+      if (!ForbidApple && Context->PickerMode == OcPickerModeApple) {
+        Status = OcRunAppleBootPicker ();
+        DEBUG ((DEBUG_INFO, "OCB: Apple BootPicker failed on error - %r, fallback to builtin\n", Status));
+        ForbidApple = TRUE;
+      }
+
       Status = OcShowSimpleBootMenu (
         Context,
         Entries,
@@ -316,7 +335,7 @@ OcRunSimpleBootPicker (
       // Do not wait on successful return code.
       //
       if (EFI_ERROR (Status)) {
-        gBS->Stall (SECONDS_TO_MICROSECONDS (5));
+        gBS->Stall (SECONDS_TO_MICROSECONDS (3));
         //
         // Show picker on first failure.
         //
@@ -333,4 +352,50 @@ OcRunSimpleBootPicker (
       OcFreeBootEntries (Entries, EntryCount);
     }
   }
+}
+
+EFI_STATUS
+OcRunAppleBootPicker (
+  VOID
+  )
+{
+  EFI_STATUS                           Status;
+  EFI_HANDLE                           NewHandle;
+  EFI_DEVICE_PATH_PROTOCOL             *Dp;
+
+  DEBUG ((DEBUG_INFO, "OCB: OcRunAppleBootPicker attempting to find...\n"));
+
+  Dp = CreateFvFileDevicePath (&gAppleBootPickerFileGuid);
+  if (Dp != NULL) {
+    DEBUG ((DEBUG_INFO, "OCB: OcRunAppleBootPicker attempting to load...\n"));
+    NewHandle = NULL;
+    Status = gBS->LoadImage (
+      FALSE,
+      gImageHandle,
+      Dp,
+      NULL,
+      0,
+      &NewHandle
+      );
+    if (EFI_ERROR (Status)) {
+      Status = EFI_INVALID_PARAMETER;
+    }
+  } else {
+    Status = EFI_NOT_FOUND;
+  }
+
+  if (!EFI_ERROR (Status)) {
+    DEBUG ((DEBUG_INFO, "OCB: OcRunAppleBootPicker attempting to start...\n"));
+    Status = gBS->StartImage (
+      NewHandle,
+      NULL,
+      NULL
+      );
+
+    if (EFI_ERROR (Status)) {
+      Status = EFI_UNSUPPORTED;
+    }
+  }
+
+  return Status;
 }

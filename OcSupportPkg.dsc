@@ -102,7 +102,9 @@
   UefiUsbLib|MdePkg/Library/UefiUsbLib/UefiUsbLib.inf
 
 [Components]
+  OcSupportPkg/Application/BootKicker/BootKicker.inf
   OcSupportPkg/Application/CleanNvram/CleanNvram.inf
+  OcSupportPkg/Application/GopStop/GopStop.inf
   OcSupportPkg/Application/PavpProvision/PavpProvision.inf
   OcSupportPkg/Application/VerifyMsrE2/VerifyMsrE2.inf
   OcSupportPkg/Debug/GdbSyms/GdbSyms.inf
