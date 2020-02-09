@@ -677,8 +677,6 @@ TakeImage (
                            (UINTN) Image->Width * sizeof (EFI_GRAPHICS_OUTPUT_BLT_PIXEL)
                            );
   }
-  
-  DEBUG ((DEBUG_INFO, "OCUI: Take Image...%r\n", Status));
 }
 
 STATIC
@@ -1325,6 +1323,7 @@ InitScreen (
   }
   
   if (mGraphicsOutput != NULL) {
+    mGraphicsOutput->SetMode (mGraphicsOutput, 0);
     mScreenWidth = mGraphicsOutput->Mode->Info->HorizontalResolution;
     mScreenHeight = mGraphicsOutput->Mode->Info->VerticalResolution;
   } else {
@@ -1367,9 +1366,6 @@ InitScreen (
   
   DEBUG ((DEBUG_INFO, "OCUI: Initialize HiiFont...%r\n", Status));
   
-  Status = OcConsoleControlSetBehaviour (OcConsoleControlGraphics);
-  
-  DEBUG ((DEBUG_INFO, "OCUI: Set ConsoleControlGraphic...%r\n", Status));
   OcGetGlyph ();
 }
 
@@ -1531,19 +1527,6 @@ PrintTextDesrciption (
   }
 }
 
-STATIC
-VOID
-RestoreConsoleMode (
-  IN EFI_SIMPLE_TEXT_OUTPUT_MODE     SavedConsoleMode
-  )
-{
-  gST->ConOut->ClearScreen (gST->ConOut);
-  gST->ConOut->SetAttribute (gST->ConOut, SavedConsoleMode.Attribute);
-  gST->ConOut->EnableCursor (gST->ConOut, SavedConsoleMode.CursorVisible);
-  gST->ConOut->SetCursorPosition (gST->ConOut, 0, 0);
-}
-
-
 EFI_STATUS
 OcShowSimpleBootMenu (
   IN OC_PICKER_CONTEXT            *Context,
@@ -1554,13 +1537,9 @@ OcShowSimpleBootMenu (
   )
 {
   EFI_STATUS                         Status;
-  EFI_SIMPLE_TEXT_OUTPUT_PROTOCOL    *ConOut;
-  EFI_SIMPLE_TEXT_OUTPUT_MODE        SavedConsoleMode;
   UINTN                              Index;
   INTN                               KeyIndex;
   UINT32                             TimeOutSeconds;
-  UINTN                              Columns;
-  UINTN                              Rows;
   UINTN                              VisibleList[Count];
   UINTN                              VisibleIndex;
   BOOLEAN                            ShowAll;
@@ -1594,28 +1573,11 @@ OcShowSimpleBootMenu (
     return EFI_UNSUPPORTED;
   }
   
-  ConOut = gST->ConOut;
-  CopyMem (&SavedConsoleMode, ConOut->Mode, sizeof (SavedConsoleMode));
-  
   for (Index = 0; Index < MIN (Count, OC_INPUT_MAX); ++Index) {
     StrWidth = UnicodeStringDisplayLength (BootEntries[Index].Name) + ((BootEntries[Index].IsFolder || BootEntries[Index].IsExternal) ? 11 : 5);
     MaxStrWidth = MaxStrWidth > StrWidth ? MaxStrWidth : StrWidth;
   }
   
-  ConOut->QueryMode (
-            ConOut,
-            SavedConsoleMode.Mode,
-            &Columns,
-            &Rows
-            );
-  
-  // This is necessary to correct console mode after returning from running any kind of tool.
-  Status = SetConsoleMode ((UINT32) Columns, (UINT32) Rows);
-  DEBUG ((DEBUG_INFO, "OCSBM: Resetting console mode to %ux%u - %r\n", Columns, Rows, Status));
-  ConOut->EnableCursor (ConOut, FALSE);
-  ConOut->ClearScreen (ConOut);
-  
-  SetScreenResolution ("Max", FALSE);
   InitScreen ();
   OcClearScreen (mBackgroundPixel);
   
@@ -1680,7 +1642,6 @@ OcShowSimpleBootMenu (
           Status = OcSetDefaultBootEntry (Context, &BootEntries[DefaultEntry]);
           DEBUG ((DEBUG_INFO, "OCSBM: Setting default - %r\n", Status));
         }
-        RestoreConsoleMode (SavedConsoleMode);
         return EFI_SUCCESS;
       } else if (KeyIndex == OC_INPUT_ABORTED) {
         TimeOutSeconds = 0;
@@ -1732,7 +1693,6 @@ OcShowSimpleBootMenu (
           Status = OcSetDefaultBootEntry (Context, &BootEntries[VisibleList[KeyIndex]]);
           DEBUG ((DEBUG_INFO, "OCSBM: Setting default - %r\n", Status));
         }
-        RestoreConsoleMode (SavedConsoleMode);
         return EFI_SUCCESS;
       } else if (KeyIndex != OC_INPUT_TIMEOUT) {
         TimeOutSeconds = 0;

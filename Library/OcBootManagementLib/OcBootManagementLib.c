@@ -26,6 +26,7 @@
 
 #include <Library/BaseLib.h>
 #include <Library/BaseMemoryLib.h>
+#include <Library/OcConsoleLib.h>
 #include <Library/OcCryptoLib.h>
 #include <Library/OcDebugLogLib.h>
 #include <Library/DevicePathLib.h>
@@ -72,6 +73,8 @@ OcShowSimplePasswordRequest (
     return EFI_SUCCESS;
   }
 
+  OcConsoleControlSetMode (EfiConsoleControlScreenText);
+  gST->ConOut->EnableCursor (gST->ConOut, FALSE);
   gST->ConOut->ClearScreen (gST->ConOut);
 
   for (Index = 0; Index < 3; ++Index) {

@@ -117,6 +117,7 @@
   _(BOOLEAN                     , DevirtualiseMmio          ,     , FALSE  , ()) \
   _(BOOLEAN                     , DisableSingleUser         ,     , FALSE  , ()) \
   _(BOOLEAN                     , DisableVariableWrite      ,     , FALSE  , ()) \
+  _(BOOLEAN                     , ProtectSecureBoot         ,     , FALSE  , ()) \
   _(BOOLEAN                     , DiscardHibernateMap       ,     , FALSE  , ()) \
   _(BOOLEAN                     , EnableSafeModeSlide       ,     , FALSE  , ()) \
   _(BOOLEAN                     , EnableWriteUnprotector    ,     , FALSE  , ()) \
@@ -272,14 +273,10 @@
   _(BOOLEAN                     , PollAppleHotKeys            ,     , FALSE                       ,     ())                   \
   _(BOOLEAN                     , ShowPicker                  ,     , FALSE                       ,     ())                   \
   _(BOOLEAN                     , UsePicker                   ,     , FALSE                       ,     ())                   \
-  _(BOOLEAN                     , BuiltinTextRenderer         ,     , FALSE                       ,     ())                   \
+  _(UINT32                      , PickerAttributes            ,     , 0                           ,     ())                   \
   _(UINT32                      , TakeoffDelay                ,     , 0                           ,     ())                   \
   _(UINT32                      , Timeout                     ,     , 0                           ,     ())                   \
-  _(OC_STRING                   , HibernateMode               ,     , OC_STRING_CONSTR ("None", _, __), OC_DESTR (OC_STRING)) \
-  _(OC_STRING                   , Resolution                  ,     , OC_STRING_CONSTR ("", _, __),     OC_DESTR (OC_STRING)) \
-  _(OC_STRING                   , ConsoleMode                 ,     , OC_STRING_CONSTR ("", _, __),     OC_DESTR (OC_STRING)) \
-  _(OC_STRING                   , ConsoleBehaviourOs          ,     , OC_STRING_CONSTR ("", _, __),     OC_DESTR (OC_STRING)) \
-  _(OC_STRING                   , ConsoleBehaviourUi          ,     , OC_STRING_CONSTR ("", _, __),     OC_DESTR (OC_STRING))
+  _(OC_STRING                   , HibernateMode               ,     , OC_STRING_CONSTR ("None", _, __), OC_DESTR (OC_STRING))
   OC_DECLARE (OC_MISC_BOOT)
 
 #define OC_MISC_DEBUG_FIELDS(_, __) \
@@ -295,7 +292,14 @@
 #define OCS_EXPOSE_OEM_INFO    8U
 #define OCS_EXPOSE_VERSION     (OCS_EXPOSE_VERSION_VAR | OCS_EXPOSE_VERSION_UI)
 
+typedef enum {
+  OcsVaultOptional = 0,
+  OcsVaultBasic    = 1,
+  OcsVaultSecure   = 2,
+} OCS_VAULT_MODE;
+
 #define OC_MISC_SECURITY_FIELDS(_, __) \
+  _(OC_STRING                   , Vault                       ,      , OC_STRING_CONSTR ("Secure", _, __), OC_DESTR (OC_STRING) ) \
   _(UINT32                      , ScanPolicy                  ,      , OC_SCAN_DEFAULT_POLICY  , ()) \
   _(BOOLEAN                     , AllowNvramReset             ,      , FALSE                   , ()) \
   _(BOOLEAN                     , AllowSetDefault             ,      , FALSE                   , ()) \
@@ -304,8 +308,6 @@
   _(BOOLEAN                     , EnablePassword              ,      , FALSE                   , ()) \
   _(UINT8                       , PasswordHash                , [64] , {0}                     , ()) \
   _(OC_DATA                     , PasswordSalt                ,      , OC_EDATA_CONSTR (_, __) , OC_DESTR (OC_DATA)) \
-  _(BOOLEAN                     , RequireVault                ,      , TRUE                    , ()) \
-  _(BOOLEAN                     , RequireSignature            ,      , TRUE                    , ()) \
   _(UINT64                      , HaltLevel                   ,      , 0x80000000              , ())
   OC_DECLARE (OC_MISC_SECURITY)
 
@@ -476,6 +478,22 @@
 OC_DECLARE (OC_UEFI_INPUT)
 
 ///
+/// Input is a set of options to support advanced output.
+///
+#define OC_UEFI_OUTPUT_FIELDS(_, __) \
+  _(OC_STRING                   , ConsoleMode                 ,     , OC_STRING_CONSTR ("", _, __), OC_DESTR (OC_STRING)) \
+  _(OC_STRING                   , Resolution                  ,     , OC_STRING_CONSTR ("", _, __), OC_DESTR (OC_STRING)) \
+  _(OC_STRING                   , TextRenderer                ,     , OC_STRING_CONSTR ("", _, __), OC_DESTR (OC_STRING)) \
+  _(UINT32                      , Scale                       ,     , 100                         , ())                   \
+  _(BOOLEAN                     , IgnoreTextInGraphics        ,     , FALSE  , ()) \
+  _(BOOLEAN                     , ClearScreenOnModeSwitch     ,     , FALSE  , ()) \
+  _(BOOLEAN                     , ProvideConsoleGop           ,     , FALSE  , ()) \
+  _(BOOLEAN                     , ReplaceTabWithSpace         ,     , FALSE  , ()) \
+  _(BOOLEAN                     , ReconnectOnResChange        ,     , FALSE  , ()) \
+  _(BOOLEAN                     , SanitiseClearScreen         ,     , FALSE  , ())
+OC_DECLARE (OC_UEFI_OUTPUT)
+
+///
 /// Prefer own protocol implementation for these protocols.
 ///
 #define OC_UEFI_PROTOCOLS_FIELDS(_, __) \
@@ -485,7 +503,6 @@ OC_DECLARE (OC_UEFI_INPUT)
   _(BOOLEAN                     , AppleKeyMap                 ,     , FALSE  , ()) \
   _(BOOLEAN                     , AppleSmcIo                  ,     , FALSE  , ()) \
   _(BOOLEAN                     , AppleUserInterfaceTheme     ,     , FALSE  , ()) \
-  _(BOOLEAN                     , ConsoleControl              ,     , FALSE  , ()) \
   _(BOOLEAN                     , DataHub                     ,     , FALSE  , ()) \
   _(BOOLEAN                     , DeviceProperties            ,     , FALSE  , ()) \
   _(BOOLEAN                     , FirmwareVolume              ,     , FALSE  , ()) \
@@ -500,15 +517,9 @@ OC_DECLARE (OC_UEFI_INPUT)
 #define OC_UEFI_QUIRKS_FIELDS(_, __) \
   _(UINT32                      , ExitBootServicesDelay       ,     , 0      , ()) \
   _(BOOLEAN                     , IgnoreInvalidFlexRatio      ,     , FALSE  , ()) \
-  _(BOOLEAN                     , IgnoreTextInGraphics        ,     , FALSE  , ()) \
   _(BOOLEAN                     , ReleaseUsbOwnership         ,     , FALSE  , ()) \
   _(BOOLEAN                     , RequestBootVarFallback      ,     , FALSE  , ()) \
   _(BOOLEAN                     , RequestBootVarRouting       ,     , FALSE  , ()) \
-  _(BOOLEAN                     , ReconnectOnResChange        ,     , FALSE  , ()) \
-  _(BOOLEAN                     , ProvideConsoleGop           ,     , FALSE  , ()) \
-  _(BOOLEAN                     , SanitiseClearScreen         ,     , FALSE  , ()) \
-  _(BOOLEAN                     , ClearScreenOnModeSwitch     ,     , FALSE  , ()) \
-  _(BOOLEAN                     , ReplaceTabWithSpace         ,     , FALSE  , ()) \
   _(BOOLEAN                     , UnblockFsConnect            ,     , FALSE  , ())
   OC_DECLARE (OC_UEFI_QUIRKS)
 
@@ -519,6 +530,7 @@ OC_DECLARE (OC_UEFI_INPUT)
   _(BOOLEAN                     , ConnectDrivers   ,     , FALSE                                    , ()) \
   _(OC_UEFI_DRIVER_ARRAY        , Drivers          ,     , OC_CONSTR2 (OC_UEFI_DRIVER_ARRAY, _, __) , OC_DESTR (OC_UEFI_DRIVER_ARRAY)) \
   _(OC_UEFI_INPUT               , Input            ,     , OC_CONSTR2 (OC_UEFI_INPUT, _, __)        , OC_DESTR (OC_UEFI_INPUT)) \
+  _(OC_UEFI_OUTPUT              , Output           ,     , OC_CONSTR2 (OC_UEFI_OUTPUT, _, __)       , OC_DESTR (OC_UEFI_OUTPUT)) \
   _(OC_UEFI_PROTOCOLS           , Protocols        ,     , OC_CONSTR2 (OC_UEFI_PROTOCOLS, _, __)    , OC_DESTR (OC_UEFI_PROTOCOLS)) \
   _(OC_UEFI_QUIRKS              , Quirks           ,     , OC_CONSTR2 (OC_UEFI_QUIRKS, _, __)       , OC_DESTR (OC_UEFI_QUIRKS))
   OC_DECLARE (OC_UEFI_CONFIG)
