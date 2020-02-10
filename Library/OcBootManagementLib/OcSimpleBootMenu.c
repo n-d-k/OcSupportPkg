@@ -1578,6 +1578,7 @@ OcShowSimpleBootMenu (
     MaxStrWidth = MaxStrWidth > StrWidth ? MaxStrWidth : StrWidth;
   }
   
+  OcConsoleControlSetMode (EfiConsoleControlScreenGraphics);
   InitScreen ();
   OcClearScreen (mBackgroundPixel);
   
