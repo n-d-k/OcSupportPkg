@@ -1054,6 +1054,90 @@ DecodePNGFile (
 
 STATIC
 VOID
+TakeScreenShot (
+  IN CHAR16              *FilePath
+  )
+{
+  EFI_STATUS              Status;
+  EFI_FILE_PROTOCOL       *Fs;
+  EFI_TIME                Date;
+  EFI_IMAGE_OUTPUT        *Image;
+  EFI_UGA_PIXEL           *ImagePNG;
+  VOID                    *Buffer;
+  UINTN                   BufferSize;
+  UINTN                   Index;
+  UINTN                   ImageSize;
+  CHAR16                  *Path;
+  UINTN                   Size;
+  
+  Buffer     = NULL;
+  BufferSize = 0;
+  
+  Status = gRT->GetTime (&Date, NULL);
+  
+  Size = StrSize (FilePath) + L_STR_SIZE (L"-0000-00-00-000000.png");
+  Path = AllocatePool (Size);
+  UnicodeSPrint (Path,
+                 Size,
+                 L"%s-%04u-%02u-%02u-%02u%02u%02u.png",
+                 FilePath,
+                 (UINT32) Date.Year,
+                 (UINT32) Date.Month,
+                 (UINT32) Date.Day,
+                 (UINT32) Date.Hour,
+                 (UINT32) Date.Minute,
+                 (UINT32) Date.Second
+  );
+  
+  Image = CreateImage (mScreenWidth, mScreenHeight);
+  if (Image == NULL) {
+    DEBUG ((DEBUG_INFO, "Failed to take screen shot!\n"));
+    return;
+  }
+    
+  TakeImage (Image, 0, 0, mScreenWidth, mScreenHeight);
+  
+  ImagePNG = (EFI_UGA_PIXEL *) Image->Image.Bitmap;
+  ImageSize = Image->Width * Image->Height;
+  
+  // Convert BGR to RGBA with Alpha set to 0xFF
+  for (Index = 0; Index < ImageSize; ++Index) {
+      UINT8 Temp = ImagePNG[Index].Blue;
+      ImagePNG[Index].Blue = ImagePNG[Index].Red;
+      ImagePNG[Index].Red = Temp;
+      ImagePNG[Index].Reserved = 0xFF;
+  }
+
+  // Encode raw RGB image to PNG format
+  Status = EncodePng (ImagePNG,
+                      (UINTN) Image->Width,
+                      (UINTN) Image->Height,
+                      8,
+                      &Buffer,
+                      &BufferSize
+                      );
+  FreeImage (Image);
+  if (Buffer == NULL) {
+    DEBUG ((DEBUG_INFO, "Fail Encoding!\n"));
+    return;
+  }
+  
+  Status = mFileSystem->OpenVolume (mFileSystem, &Fs);
+  if (EFI_ERROR (Status)) {
+    DEBUG ((DEBUG_INFO, "OCUI: Locating Writeable file system - %r\n", Status));
+    return;
+  }
+  
+  Status = SetFileData (Fs, Path, Buffer, (UINT32) BufferSize);
+  DEBUG ((DEBUG_INFO, "OCUI: Screenshot was taken - %r\n", Status));
+  FreePng (Buffer);
+  if (Path != NULL) {
+    FreePool (Path);
+  }
+}
+
+STATIC
+VOID
 CreateIcon (
   IN CHAR16               *Name,
   IN OC_BOOT_ENTRY_TYPE   Type,
@@ -1285,8 +1369,6 @@ OcClearScreenArea (
                             0
                             );
   }
-  
-  DEBUG ((DEBUG_INFO, "OCUI: Clearing Graphic Screen Area...%r\n", Status));
 }
 
 STATIC
@@ -1647,6 +1729,9 @@ OcShowSimpleBootMenu (
       } else if (KeyIndex == OC_INPUT_ABORTED) {
         TimeOutSeconds = 0;
         break;
+      } else if (KeyIndex == OC_INPUT_F10) {
+        TimeOutSeconds = 0;
+        TakeScreenShot (L"ScreenShot");
       } else if (KeyIndex == OC_INPUT_SPACEBAR) {
         ShowAll = !ShowAll;
         while ((BootEntries[DefaultEntry].Hidden && !ShowAll && DefaultEntry > 0)

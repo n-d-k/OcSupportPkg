@@ -343,6 +343,11 @@ OcWaitForAppleKeyIndex (
         OcKeyMapFlush (KeyMap, Keys[0], TRUE);
         return OC_INPUT_DOWN;
       }
+      
+      if (Keys[0] == AppleHidUsbKbUsageKeyF10) {
+        OcKeyMapFlush (KeyMap, Keys[0], TRUE);
+        return OC_INPUT_F10;
+      }
     
       STATIC_ASSERT (AppleHidUsbKbUsageKeyOne + 8 == AppleHidUsbKbUsageKeyNine, "Unexpected encoding");
       for (KeyCode = AppleHidUsbKbUsageKeyOne; KeyCode <= AppleHidUsbKbUsageKeyNine; ++KeyCode) {
