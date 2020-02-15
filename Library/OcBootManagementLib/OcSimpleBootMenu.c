@@ -1343,6 +1343,7 @@ CreateIcon (
   }
   
   ScaledImage = CopyScaledImage (Icon, mUiScale);
+  FreeImage (Icon);
   CreateMenuImage (ScaledImage, IconCount);
 }
 
