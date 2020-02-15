@@ -1554,7 +1554,7 @@ InitScreen (
   }
   
   if (mGraphicsOutput != NULL) {
-    mGraphicsOutput->SetMode (mGraphicsOutput, 0);
+    Status = OcSetConsoleResolution (0, 0, 0);
     mScreenWidth = mGraphicsOutput->Mode->Info->HorizontalResolution;
     mScreenHeight = mGraphicsOutput->Mode->Info->VerticalResolution;
   } else {
