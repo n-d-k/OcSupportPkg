@@ -97,21 +97,34 @@ STATIC
 EFI_SIMPLE_FILE_SYSTEM_PROTOCOL *
 mFileSystem = NULL;
 
-EFI_IMAGE_OUTPUT *mBackgroundImage = NULL;
-EFI_IMAGE_OUTPUT *mMenuImage = NULL;
+EFI_IMAGE_OUTPUT *
+mBackgroundImage = NULL;
 
-/*============ User's Color Settings Begin ==============*/
+EFI_IMAGE_OUTPUT *
+mMenuImage = NULL;
 
+BOOLEAN
+mIsSolidBackground = TRUE;
 
+/* Colors are now customized by the optional small 16x16 pixels png color example files in Icons folder (Can be anysize only 1st pixels will be used for color setting).
+   font_color.png (Entry discription color and selection color)
+   font_color_alt.png (All other text on screen)
+   background_color.png (Background color)
+   Background.png (Wallpaper bacground instead, preferly matching with screen resolution setting.)
+ 
+   Background.png will be checked first, will use it if found in Icons foler, if not found, then background_color.png will be checked,
+   if not found then 1st pixel color (top/left pixel) of icon.
+ */
+
+/*=========== Default colors settings ==============*/
+
+EFI_GRAPHICS_OUTPUT_BLT_PIXEL mBaseBackgroundPixel  = {0x7f, 0x0f, 0x0f, 0xff};
+EFI_GRAPHICS_OUTPUT_BLT_PIXEL mTransparentPixel  = {0x00, 0x00, 0x00, 0x00};
 EFI_GRAPHICS_OUTPUT_BLT_PIXEL mBlackPixel  = {0x00, 0x00, 0x00, 0xff};
 EFI_GRAPHICS_OUTPUT_BLT_PIXEL mDarkGray = {0x76, 0x81, 0x85, 0xff};
 EFI_GRAPHICS_OUTPUT_BLT_PIXEL mLowWhitePixel  = {0xb8, 0xbd, 0xbf, 0xff};
-/*
- Example:
- EFI_GRAPHICS_OUTPUT_BLT_PIXEL mNewColor = {0x3d, 0x3c, 0x3b, 0xff}; <- BGRA format
- 
- EFI_GRAPHICS_OUTPUT_BLT_PIXEL *mFontColorPixel = &mNewColor;
-*/
+EFI_GRAPHICS_OUTPUT_BLT_PIXEL mTanPixel  = {0x4e, 0x6c, 0x96, 0xff};
+
 // Selection and Entry's description font color
 EFI_GRAPHICS_OUTPUT_BLT_PIXEL *mFontColorPixel = &mLowWhitePixel;
 
@@ -120,8 +133,6 @@ EFI_GRAPHICS_OUTPUT_BLT_PIXEL *mFontColorPixelAlt = &mDarkGray;
 
 // Background color
 EFI_GRAPHICS_OUTPUT_BLT_PIXEL *mBackgroundPixel = &mBlackPixel;
-
-/*============= User's Color Settings End ===============*/
 
 STATIC
 VOID
@@ -138,6 +149,63 @@ FreeImage (
   }
 }
 
+BOOLEAN
+FileExist (
+  IN CHAR16                        *FilePath
+  )
+{
+  EFI_STATUS                       Status;
+  EFI_SIMPLE_FILE_SYSTEM_PROTOCOL  *FileSystem;
+  VOID                             *Buffer;
+  UINT32                           BufferSize;
+  EFI_HANDLE                       *Handles;
+  UINTN                            HandleCount;
+  UINTN                            Index;
+
+  BufferSize = 0;
+  HandleCount = 0;
+  FileSystem = NULL;
+  Buffer = NULL;
+  
+  if (mFileSystem == NULL) {
+    Status = gBS->LocateHandleBuffer(ByProtocol, &gEfiPartTypeSystemPartGuid, NULL, &HandleCount, &Handles);
+    if (!EFI_ERROR (Status) && HandleCount > 0) {
+      for (Index = 0; Index < HandleCount; ++Index) {
+        Status = gBS->HandleProtocol (
+                        Handles[Index],
+                        &gEfiSimpleFileSystemProtocolGuid,
+                        (VOID **) &FileSystem
+                        );
+        if (EFI_ERROR (Status)) {
+          FileSystem = NULL;
+          continue;
+        }
+        
+        Buffer = ReadFile (FileSystem, FilePath, &BufferSize, BASE_16MB);
+        if (Buffer != NULL) {
+          mFileSystem = FileSystem;
+          DEBUG ((DEBUG_INFO, "OCUI: FileSystem found!  Handle(%d) \n", Index));
+          break;
+        }
+        FileSystem = NULL;
+      }
+      
+      if (Handles != NULL) {
+        FreePool (Handles);
+      }
+    }
+    
+  } else {
+    Buffer = ReadFile (mFileSystem, FilePath, &BufferSize, BASE_16MB);
+  }
+  
+  if (Buffer != NULL) {
+    FreePool (Buffer);
+    return TRUE;
+  }
+  return FALSE;
+}
+
 STATIC
 EFI_IMAGE_OUTPUT *
 CreateImage (
@@ -147,7 +215,7 @@ CreateImage (
 {
   EFI_IMAGE_OUTPUT  *NewImage;
   
-  NewImage = (EFI_IMAGE_OUTPUT *) AllocatePool (sizeof (EFI_IMAGE_OUTPUT));
+  NewImage = (EFI_IMAGE_OUTPUT *) AllocateZeroPool (sizeof (EFI_IMAGE_OUTPUT));
   
   if (NewImage == NULL) {
     return NULL;
@@ -158,7 +226,7 @@ CreateImage (
     return NULL;
   }
   
-  NewImage->Image.Bitmap = AllocatePool (Width * Height * sizeof (EFI_GRAPHICS_OUTPUT_BLT_PIXEL));
+  NewImage->Image.Bitmap = AllocateZeroPool (Width * Height * sizeof (EFI_GRAPHICS_OUTPUT_BLT_PIXEL));
   if (NewImage->Image.Bitmap == NULL) {
     FreePool (NewImage);
     return NULL;
@@ -215,6 +283,7 @@ DrawImageArea (
   if (Image == NULL) {
     return;
   }
+  
   if (ScreenXpos < 0 || ScreenXpos >= mScreenWidth || ScreenYpos < 0 || ScreenYpos >= mScreenHeight) {
     DEBUG ((DEBUG_INFO, "OCUI: Invalid Screen coordinate requested...x:%d - y:%d \n", ScreenXpos, ScreenYpos));
     return;
@@ -358,6 +427,43 @@ RawCopy (
 
 STATIC
 VOID
+RawCopyAlpha (
+  IN OUT EFI_GRAPHICS_OUTPUT_BLT_PIXEL *CompBasePtr,
+  IN     EFI_GRAPHICS_OUTPUT_BLT_PIXEL *TopBasePtr,
+  IN     INTN                          Width,
+  IN     INTN                          Height,
+  IN     INTN                          CompLineOffset,
+  IN     INTN                          TopLineOffset
+  )
+{
+  INTN       X;
+  INTN       Y;
+
+  if (CompBasePtr == NULL || TopBasePtr == NULL) {
+    return;
+  }
+  
+  EFI_GRAPHICS_OUTPUT_BLT_PIXEL *FirstTopPtr = TopBasePtr;
+  for (Y = 0; Y < Height; ++Y) {
+    EFI_GRAPHICS_OUTPUT_BLT_PIXEL *TopPtr = TopBasePtr;
+    EFI_GRAPHICS_OUTPUT_BLT_PIXEL *CompPtr = CompBasePtr;
+    for (X = 0; X < Width; ++X) {
+      if (TopPtr->Red != FirstTopPtr->Red
+          && TopPtr->Blue != FirstTopPtr->Blue
+          && TopPtr->Reserved != FirstTopPtr->Reserved
+          ) {
+        *CompPtr = *TopPtr;
+      }
+      TopPtr++;
+      CompPtr++;
+    }
+    TopBasePtr += TopLineOffset;
+    CompBasePtr += CompLineOffset;
+  }
+}
+
+STATIC
+VOID
 RawCompose (
   IN OUT EFI_GRAPHICS_OUTPUT_BLT_PIXEL *CompBasePtr,
   IN     EFI_GRAPHICS_OUTPUT_BLT_PIXEL *TopBasePtr,
@@ -435,6 +541,9 @@ ComposeImage (
   RestrictImageArea (Image, Xpos, Ypos, &CompWidth, &CompHeight);
 
   if (CompWidth > 0) {
+    if (ImageIsAlpha && mBackgroundImage == NULL) {
+      ImageIsAlpha = FALSE;
+    }
     if (TopImageIsAlpha) {
       if (ImageIsAlpha) {
         RawCompose (Image->Image.Bitmap + Ypos * Image->Width + Xpos,
@@ -516,7 +625,7 @@ CreateFilledImage (
 
 STATIC
 VOID
-OcGetGlyph (
+GetGlyph (
   VOID
   )
 {
@@ -539,6 +648,7 @@ OcGetGlyph (
     FreeImage (Blt);
   }
 }
+
 STATIC
 EFI_IMAGE_OUTPUT *
 CopyImage (
@@ -698,45 +808,103 @@ CreateMenuImage (
   Xpos = 0;
   Ypos = 0;
   
-  if (mMenuImage == NULL) {
-    mMenuImage = Icon;
-    return;
-  }
-  
-  Width = mMenuImage->Width;
-  Height = mMenuImage->Height;
-  IsTwoRow = mMenuImage->Height > Icon->Height;
-  
-  if (IsTwoRow) {
-    IconsPerRow = mMenuImage->Width / Icon->Width;
-    Xpos = (IconCount - IconsPerRow) * Icon->Width;
-    Ypos = Icon->Height;
-  } else {
-    if (mMenuImage->Width + (Icon->Width * 2) <= mScreenWidth) {
-      Width = mMenuImage->Width + Icon->Width;
-      Xpos = mMenuImage->Width;
+  if (mMenuImage != NULL) {
+    Width = mMenuImage->Width;
+    Height = mMenuImage->Height;
+    IsTwoRow = mMenuImage->Height > mIconSpaceSize;
+    
+    if (IsTwoRow) {
+      IconsPerRow = mMenuImage->Width / mIconSpaceSize;
+      Xpos = (IconCount - IconsPerRow) * mIconSpaceSize;
+      Ypos = mIconSpaceSize;
     } else {
-      Height = mMenuImage->Height + Icon->Height;
-      Ypos = Icon->Height;
+      if (mMenuImage->Width + (mIconSpaceSize * 2) <= mScreenWidth) {
+        Width = mMenuImage->Width + mIconSpaceSize;
+        Xpos = mMenuImage->Width;
+      } else {
+        Height = mMenuImage->Height + mIconSpaceSize;
+        Ypos = mIconSpaceSize;
+      }
     }
+  } else {
+    Width = mIconSpaceSize;
+    Height = Width;
   }
   
-  NewImage = CreateFilledImage (Width, Height, FALSE, mBackgroundPixel);
+  NewImage = CreateFilledImage (Width, Height, TRUE, &mTransparentPixel);
   if (NewImage == NULL) {
     return;
   }
   
-  ComposeImage (NewImage, mMenuImage, 0, 0, FALSE, FALSE);
   if (mMenuImage != NULL) {
-    FreeImage (mMenuImage);
+    ComposeImage (NewImage, mMenuImage, 0, 0, TRUE, TRUE);
+    if (mMenuImage != NULL) {
+      FreeImage (mMenuImage);
+    }
   }
   
-  ComposeImage (NewImage, Icon, Xpos, Ypos, FALSE, FALSE);
+  ComposeImage (NewImage, Icon, Xpos + mIconPaddingSize, Ypos + mIconPaddingSize, TRUE, TRUE);
   if (Icon != NULL) {
     FreeImage (Icon);
   }
   
   mMenuImage = NewImage;
+}
+
+STATIC
+VOID
+BltImageAlpha (
+  IN EFI_IMAGE_OUTPUT              *Image,
+  IN INTN                          Xpos,
+  IN INTN                          Ypos,
+  IN EFI_GRAPHICS_OUTPUT_BLT_PIXEL *BackgroundPixel,
+  IN INTN                          Scale
+  )
+{
+  EFI_IMAGE_OUTPUT    *CompImage;
+  EFI_IMAGE_OUTPUT    *NewImage;
+  INTN                Width;
+  INTN                Height;
+  
+  NewImage = NULL;
+  Width    = Scale << 3;
+  Height   = Width;
+
+  if (Image != NULL) {
+    NewImage = CopyScaledImage (Image, Scale);
+    Width = NewImage->Width;
+    Height = NewImage->Height;
+  }
+
+  CompImage = CreateFilledImage (Width, Height, (mBackgroundImage != NULL), BackgroundPixel);
+  ComposeImage (CompImage, NewImage, 0, 0, (mBackgroundImage != NULL), TRUE);
+  if (NewImage != NULL) {
+    FreeImage (NewImage);
+  }
+  if (mBackgroundImage == NULL) {
+    DrawImageArea (CompImage, 0, 0, 0, 0, Xpos, Ypos);
+    FreeImage (CompImage);
+    return;
+  }
+  
+  // Background Image was used.
+  NewImage = CreateImage (Width, Height);
+  if (NewImage == NULL) {
+    return;
+  }
+  RawCopy (NewImage->Image.Bitmap,
+           mBackgroundImage->Image.Bitmap + Ypos * mBackgroundImage->Width + Xpos,
+           Width,
+           Height,
+           Width,
+           mBackgroundImage->Width
+           );
+  // Compose
+  ComposeImage (NewImage, CompImage, 0, 0, FALSE, (mBackgroundImage != NULL));
+  FreeImage (CompImage);
+  // Draw to screen
+  DrawImageArea (NewImage, 0, 0, 0, 0, Xpos, Ypos);
+  FreeImage (NewImage);
 }
 
 STATIC
@@ -752,6 +920,49 @@ BltImage (
   }
   
   DrawImageArea (Image, 0, 0, 0, 0, Xpos, Ypos);
+}
+
+STATIC
+VOID
+BltMenuImage (
+  IN EFI_IMAGE_OUTPUT    *Image,
+  IN INTN                Xpos,
+  IN INTN                Ypos
+  )
+{
+  EFI_IMAGE_OUTPUT       *NewImage;
+  
+  if (Image == NULL) {
+    return;
+  }
+  
+  NewImage = CreateImage (Image->Width, Image->Height);
+  if (NewImage == NULL) {
+    return;
+  }
+  
+  RawCopy (NewImage->Image.Bitmap,
+           mBackgroundImage->Image.Bitmap + Ypos * mBackgroundImage->Width + Xpos,
+           Image->Width,
+           Image->Height,
+           Image->Width,
+           mBackgroundImage->Width
+           );
+  
+  if (mIsSolidBackground) {
+    ComposeImage (NewImage, Image, 0, 0, FALSE, TRUE);
+  } else {
+    RawCopyAlpha (NewImage->Image.Bitmap,
+                  Image->Image.Bitmap,
+                  NewImage->Width,
+                  NewImage->Height,
+                  NewImage->Width,
+                  Image->Width
+                  );
+  }
+  
+  DrawImageArea (NewImage, 0, 0, 0, 0, Xpos, Ypos);
+  FreeImage (Image);
 }
 
 STATIC
@@ -839,116 +1050,34 @@ CreatTextImage (
 STATIC
 VOID
 PrintTextGraphicXY (
-  IN UINTN                            PointX,
-  IN UINTN                            PointY,
-  IN EFI_GRAPHICS_OUTPUT_BLT_PIXEL    *Foreground,
-  IN EFI_GRAPHICS_OUTPUT_BLT_PIXEL    *Background,
-  IN CHAR16                           *Buffer
+  IN CHAR16                           *String,
+  IN INTN                             Xpos,
+  IN INTN                             Ypos,
+  IN EFI_GRAPHICS_OUTPUT_BLT_PIXEL    *FontColor
+  
   )
 {
-  EFI_STATUS                          Status;
-  EFI_IMAGE_OUTPUT                    *Blt;
-  EFI_IMAGE_OUTPUT                    *ScaledBlt;
-  EFI_FONT_DISPLAY_INFO               FontDisplayInfo;
-  EFI_HII_ROW_INFO                    *RowInfoArray;
-  UINTN                               RowInfoArraySize;
-  
-  RowInfoArray  = NULL;
-  ScaledBlt = NULL;
+  EFI_IMAGE_OUTPUT                    *TextImage;
 
-  Blt = (EFI_IMAGE_OUTPUT *) AllocateZeroPool (sizeof (EFI_IMAGE_OUTPUT));
-  if (Blt == NULL) {
-    DEBUG ((DEBUG_INFO, "OCUI: Failed to allocate memory pool.\n"));
+  TextImage = CreatTextImage (FontColor, &mTransparentPixel, String, TRUE);
+  if (TextImage == NULL) {
     return;
   }
   
-  Blt->Width = StrLen (Buffer) * mFontWidth;
-  Blt->Height = mFontHeight;
-  
-  Blt->Image.Bitmap = AllocateZeroPool (Blt->Width * Blt->Height * sizeof (EFI_GRAPHICS_OUTPUT_BLT_PIXEL));
-  
-  if (Blt->Image.Bitmap == NULL) {
-    DEBUG ((DEBUG_INFO, "OCUI: Failed to allocate memory pool for Bitmap.\n"));
-    FreeImage (Blt);
-    return;
+  if ((Xpos + TextImage->Width + 8) > mScreenWidth) {
+    Xpos = mScreenWidth - (TextImage->Width + 8);
   }
   
-  ZeroMem (&FontDisplayInfo, sizeof (EFI_FONT_DISPLAY_INFO));
-  CopyMem (&FontDisplayInfo.ForegroundColor, Foreground, sizeof (EFI_GRAPHICS_OUTPUT_BLT_PIXEL));
-  CopyMem (&FontDisplayInfo.BackgroundColor, Background, sizeof (EFI_GRAPHICS_OUTPUT_BLT_PIXEL));
-  
-  Status = mHiiFont->StringToImage (
-                          mHiiFont,
-                          EFI_HII_IGNORE_IF_NO_GLYPH | EFI_HII_OUT_FLAG_CLIP |
-                          EFI_HII_OUT_FLAG_CLIP_CLEAN_X | EFI_HII_OUT_FLAG_CLIP_CLEAN_Y |
-                          EFI_HII_IGNORE_LINE_BREAK,
-                          Buffer,
-                          &FontDisplayInfo,
-                          &Blt,
-                          0,
-                          0,
-                          &RowInfoArray,
-                          &RowInfoArraySize,
-                          NULL
-                          );
-  
-  if (!EFI_ERROR (Status)) {
-    ScaledBlt = CopyScaledImage (Blt, mTextScale);
-    if (ScaledBlt == NULL) {
-      DEBUG ((DEBUG_INFO, "OCUI: Failed to scale image!\n"));
-      if (RowInfoArray != NULL) {
-        FreePool (RowInfoArray);
-      }
-      FreeImage (Blt);
-    }
-    
-    if ((PointY + ScaledBlt->Height + 5) > mScreenHeight) {
-      PointY = mScreenHeight - (ScaledBlt->Height + 5);
-    }
-    
-    if ((PointX + ScaledBlt->Width + 10) > mScreenWidth) {
-      PointX = mScreenWidth - (ScaledBlt->Width + 10);
-    }
-    
-    if (mGraphicsOutput != NULL) {
-      Status = mGraphicsOutput->Blt(mGraphicsOutput,
-                                    (EFI_GRAPHICS_OUTPUT_BLT_PIXEL *) ScaledBlt->Image.Bitmap,
-                                    EfiBltBufferToVideo,
-                                    0,
-                                    0,
-                                    PointX,
-                                    PointY,
-                                    ScaledBlt->Width,
-                                    ScaledBlt->Height,
-                                    ScaledBlt->Width * sizeof (EFI_GRAPHICS_OUTPUT_BLT_PIXEL)
-                                    );
-    } else {
-      ASSERT (mUgaDraw != NULL);
-      Status = mUgaDraw->Blt(mUgaDraw,
-                              (EFI_UGA_PIXEL *) Blt->Image.Bitmap,
-                              EfiUgaBltBufferToVideo,
-                              0,
-                              0,
-                              PointX,
-                              PointY,
-                              ScaledBlt->Width,
-                              ScaledBlt->Height,
-                              ScaledBlt->Width * sizeof (EFI_GRAPHICS_OUTPUT_BLT_PIXEL)
-                              );
-    }
+  if ((Ypos + TextImage->Height + 5) > mScreenHeight) {
+    Ypos = mScreenHeight - (TextImage->Height + 5);
   }
   
-  if (RowInfoArray != NULL) {
-    FreePool (RowInfoArray);
-  }
-  
-  FreeImage (Blt);
-  FreeImage (ScaledBlt);
+  BltImageAlpha (TextImage, Xpos, Ypos, &mTransparentPixel, 16);
 }
 
 EFI_IMAGE_OUTPUT *
 DecodePNGFile (
-  IN CHAR16                       *FilePath
+  IN CHAR16                        *FilePath
   )
 {
   EFI_STATUS                       Status;
@@ -1005,8 +1134,8 @@ DecodePNGFile (
   }
   
   if (Buffer == NULL) {
-    DEBUG ((DEBUG_ERROR, "OCUI: Failed to locate valid png file - %p!\n", Buffer));
-    return NULL;
+    DEBUG ((DEBUG_ERROR, "OCUI: Failed to locate %s file\n", FilePath));
+    return Buffer;
   }
   
   Status = DecodePng (
@@ -1047,8 +1176,8 @@ DecodePNGFile (
   if (Buffer != NULL) {
     FreePool (Buffer);
   }
+  
   FreePng (Data);
-  DEBUG ((DEBUG_INFO, "OCUI: DecodePNG...%r\n", Status));
   return NewImage;
 }
 
@@ -1144,17 +1273,17 @@ CreateIcon (
   IN UINTN                IconCount,
   IN BOOLEAN              IsDefault,
   IN BOOLEAN              Ext,
-  IN BOOLEAN              Dmg,
-  IN BOOLEAN              Selected
+  IN BOOLEAN              Dmg
   )
 {
   CHAR16                 *FilePath;
   EFI_IMAGE_OUTPUT       *Icon;
-  EFI_IMAGE_OUTPUT       *NewImage;
-  EFI_IMAGE_OUTPUT       *BaseImage;
   EFI_IMAGE_OUTPUT       *ScaledImage;
+  EFI_IMAGE_OUTPUT       *TmpImage;
   
   Icon = NULL;
+  ScaledImage = NULL;
+  TmpImage = NULL;
   
   switch (Type) {
     case OcBootWindows:
@@ -1205,37 +1334,16 @@ CreateIcon (
       break;
   }
   
-  BaseImage = CreateFilledImage (mIconSpaceSize - (mIconPaddingSize * 2), mIconSpaceSize - (mIconPaddingSize * 2), FALSE, mBackgroundPixel);
-  if (BaseImage == NULL) {
-    return;
-  }
-  
   Icon = DecodePNGFile (FilePath);
   
   if (Icon != NULL) {
-    ScaledImage = CopyScaledImage (Icon, mUiScale);
-    if (Icon != NULL) {
-      FreeImage (Icon);
-    }
-    
-    ComposeImage (BaseImage, ScaledImage, 0, 0, TRUE, FALSE);
-    if (ScaledImage != NULL) {
-      FreeImage (ScaledImage);
-    }
+    TmpImage = CreateFilledImage (128, 128, TRUE, &mTransparentPixel);
+    ComposeImage (Icon, TmpImage, 0, 0, FALSE, TRUE);
+    FreeImage (TmpImage);
   }
   
-  NewImage = CreateFilledImage (mIconSpaceSize, mIconSpaceSize, FALSE, Selected ? mFontColorPixel : mBackgroundPixel);
-  if (NewImage == NULL) {
-    DEBUG ((DEBUG_INFO, "OCUI: Failed create Dummy Icon\n"));
-    return;
-  }
-  
-  ComposeImage (NewImage, BaseImage, mIconPaddingSize, mIconPaddingSize, TRUE, FALSE);
-  if (BaseImage != NULL) {
-    FreeImage (BaseImage);
-  }
-  
-  CreateMenuImage (NewImage, IconCount);
+  ScaledImage = CopyScaledImage (Icon, mUiScale);
+  CreateMenuImage (ScaledImage, IconCount);
 }
 
 STATIC
@@ -1255,7 +1363,7 @@ SwitchIconSelection (
   UINT16                 Height;
   UINTN                  IconsPerRow;
   
-  /* Begin Calulating Xpos and Ypos of current selected icon on screen*/
+  /* Begin Calculating Xpos and Ypos of current selected icon on screen*/
   NewImage = NULL;
   Icon = NULL;
   IsTwoRow = FALSE;
@@ -1286,7 +1394,7 @@ SwitchIconSelection (
     Xpos = (mScreenWidth - Width) / 2 + (mIconSpaceSize * IconIndex);
     Ypos = (mScreenHeight / 2) - mIconSpaceSize;
   }
-  /* Done Calulating Xpos and Ypos of current selected icon on screen*/
+  /* Done Calculating Xpos and Ypos of current selected icon on screen*/
   
   Icon = CreateImage (mIconSpaceSize - (mIconPaddingSize * 2), mIconSpaceSize - (mIconPaddingSize * 2));
   if (Icon == NULL) {
@@ -1294,81 +1402,124 @@ SwitchIconSelection (
   }
   TakeImage (Icon, Xpos + mIconPaddingSize, Ypos + mIconPaddingSize, Icon->Width, Icon->Height);
   
-  NewImage = CreateFilledImage (mIconSpaceSize, mIconSpaceSize, FALSE, Selected ? mFontColorPixel : mBackgroundPixel);
-  ComposeImage (NewImage, Icon, mIconPaddingSize, mIconPaddingSize, TRUE, FALSE);
+  if (Selected) {
+    NewImage = CreateFilledImage (mIconSpaceSize, mIconSpaceSize, FALSE, mFontColorPixel);
+  } else {
+    NewImage = CreateImage (mIconSpaceSize, mIconSpaceSize);
+    
+    RawCopy (NewImage->Image.Bitmap,
+             mBackgroundImage->Image.Bitmap + Ypos * mBackgroundImage->Width + Xpos,
+             mIconSpaceSize,
+             mIconSpaceSize,
+             mIconSpaceSize,
+             mBackgroundImage->Width
+             );
+  }
+  
+  ComposeImage (NewImage, Icon, mIconPaddingSize, mIconPaddingSize, FALSE, FALSE);
   if (Icon != NULL) {
     FreeImage (Icon);
   }
   
   BltImage (NewImage, Xpos, Ypos);
-  if (NewImage != NULL) {
-    FreeImage (NewImage);
-  }
 }
 
 STATIC
 VOID
-OcClearScreen (
+ClearScreen (
   IN EFI_GRAPHICS_OUTPUT_BLT_PIXEL  *Color
   )
 {
+  EFI_IMAGE_OUTPUT                  *Image;
+  
+  if (FileExist (L"EFI\\OC\\Icons\\Background.png")) {
+    mBackgroundImage = DecodePNGFile (L"EFI\\OC\\Icons\\Background.png");
+    mIsSolidBackground = FALSE;
+  }
+  
   if (mBackgroundImage != NULL && (mBackgroundImage->Width != mScreenWidth || mBackgroundImage->Height != mScreenHeight)) {
     FreeImage(mBackgroundImage);
     mBackgroundImage = NULL;
   }
   
   if (mBackgroundImage == NULL) {
-    mBackgroundImage = CreateFilledImage (mScreenWidth, mScreenHeight, FALSE, Color);
-    if (mBackgroundImage != NULL) {
-      BltImage (mBackgroundImage, 0, 0);
+    if (FileExist (L"EFI\\OC\\Icons\\background_color.png")) {
+      Image = DecodePNGFile (L"EFI\\OC\\Icons\\background_color.png");
+      if (Image != NULL) {
+        CopyMem (mBackgroundPixel, &Image->Image.Bitmap[0], sizeof (EFI_GRAPHICS_OUTPUT_BLT_PIXEL));
+        mBackgroundPixel->Reserved = 0xff;
+      } else {
+        Image = DecodePNGFile (L"EFI\\OC\\Icons\\os_mac.icns");
+        if (Image != NULL) {
+          CopyMem (mBackgroundPixel, &Image->Image.Bitmap[0], sizeof (EFI_GRAPHICS_OUTPUT_BLT_PIXEL));
+          mBackgroundPixel->Reserved = 0xff;
+        }
+      }
+      FreeImage (Image);
+    }
+    mBackgroundImage = CreateFilledImage (mScreenWidth, mScreenHeight, FALSE, mBackgroundPixel);
+  }
+  
+  if (mBackgroundImage != NULL) {
+    BltImage (mBackgroundImage, 0, 0);
+  }
+  
+  if (FileExist (L"EFI\\OC\\Icons\\font_color.png")) {
+    Image = DecodePNGFile (L"EFI\\OC\\Icons\\font_color.png");
+    if (Image != NULL) {
+      CopyMem (mFontColorPixel, &Image->Image.Bitmap[0], sizeof (EFI_GRAPHICS_OUTPUT_BLT_PIXEL));
+      mFontColorPixel->Reserved = 0xff;
+      FreeImage (Image);
+    }
+  }
+  
+  if (FileExist (L"EFI\\OC\\Icons\\font_color_alt.png")) {
+    Image = DecodePNGFile (L"EFI\\OC\\Icons\\font_color_alt.png");
+    if (Image != NULL) {
+      CopyMem (mFontColorPixelAlt, &Image->Image.Bitmap[0], sizeof (EFI_GRAPHICS_OUTPUT_BLT_PIXEL));
+      mFontColorPixelAlt->Reserved = 0xff;
+      FreeImage (Image);
     }
   }
 }
 
 STATIC
 VOID
-OcClearScreenArea (
+ClearScreenArea (
   IN EFI_GRAPHICS_OUTPUT_BLT_PIXEL  *Color,
-  IN INTN                           AreaXpos,
-  IN INTN                           AreaYpos,
-  IN INTN                           AreaWidth,
-  IN INTN                           AreaHeight
+  IN INTN                           Xpos,
+  IN INTN                           Ypos,
+  IN INTN                           Width,
+  IN INTN                           Height
   )
 {
-  EFI_STATUS                        Status;
-  EFI_UGA_PIXEL                     FillColor;
+  EFI_IMAGE_OUTPUT                  *Image;
+  EFI_IMAGE_OUTPUT                  *NewImage;
   
-  FillColor.Red      = Color->Red;
-  FillColor.Green    = Color->Green;
-  FillColor.Blue     = Color->Blue;
-  FillColor.Reserved = 0;
-  
-  if (mGraphicsOutput != NULL) {
-    Status = mGraphicsOutput->Blt(mGraphicsOutput,
-                                  (EFI_GRAPHICS_OUTPUT_BLT_PIXEL *) &FillColor,
-                                  EfiBltVideoFill,
-                                  0,
-                                  0,
-                                  AreaXpos,
-                                  AreaYpos,
-                                  AreaWidth,
-                                  AreaHeight,
-                                  0
-                                  );
-  } else {
-    ASSERT (mUgaDraw != NULL);
-    Status = mUgaDraw->Blt(mUgaDraw,
-                            &FillColor,
-                            EfiUgaVideoFill,
-                            0,
-                            0,
-                            AreaXpos,
-                            AreaYpos,
-                            AreaWidth,
-                            AreaHeight,
-                            0
-                            );
+  Image = CreateFilledImage (Width, Height, (mBackgroundImage != NULL), Color);
+  if (mBackgroundImage == NULL) {
+    DrawImageArea (Image, 0, 0, 0, 0, Xpos, Ypos);
+    FreeImage (Image);
+    return;
   }
+  
+  NewImage = CreateImage (Width, Height);
+  if (NewImage == NULL) {
+    return;
+  }
+  RawCopy (NewImage->Image.Bitmap,
+           mBackgroundImage->Image.Bitmap + Ypos * mBackgroundImage->Width + Xpos,
+           Width,
+           Height,
+           Width,
+           mBackgroundImage->Width
+           );
+
+  ComposeImage (NewImage, Image, 0, 0, FALSE, (mBackgroundImage != NULL));
+  FreeImage (Image);
+
+  DrawImageArea (NewImage, 0, 0, 0, 0, Xpos, Ypos);
+  FreeImage (NewImage);
 }
 
 STATIC
@@ -1377,14 +1528,12 @@ InitScreen (
   VOID
   )
 {
-  EFI_STATUS    Status;
-  EFI_HANDLE    Handle;
-  UINT32        ColorDepth;
-  UINT32        RefreshRate;
-  UINT32        ScreenWidth;
-  UINT32        ScreenHeight;
-  
-  
+  EFI_STATUS        Status;
+  EFI_HANDLE        Handle;
+  UINT32            ColorDepth;
+  UINT32            RefreshRate;
+  UINT32            ScreenWidth;
+  UINT32            ScreenHeight;
   
   Handle = NULL;
   mUgaDraw = NULL;
@@ -1448,7 +1597,7 @@ InitScreen (
   
   DEBUG ((DEBUG_INFO, "OCUI: Initialize HiiFont...%r\n", Status));
   
-  OcGetGlyph ();
+  GetGlyph ();
 }
 
 STATIC
@@ -1476,10 +1625,10 @@ PrintDateTime (
     }
     UnicodeSPrint (DateStr, sizeof (DateStr), L"%02u/%02u/%04u", DateTime.Month, DateTime.Day, DateTime.Year);
     UnicodeSPrint (TimeStr, sizeof (TimeStr), L"%02u:%02u:%02u%s", Hour, DateTime.Minute, DateTime.Second, Str);
-    PrintTextGraphicXY (mScreenWidth - ((StrLen(DateStr) * mFontWidth) + 10), 5, mFontColorPixelAlt, mBackgroundPixel, DateStr);
-    PrintTextGraphicXY (mScreenWidth - ((StrLen(DateStr) * mFontWidth) + 10), (mTextScale == 16) ? (mFontHeight + 5 + 2) : ((mFontHeight * 2) + 5 + 2), mFontColorPixelAlt, mBackgroundPixel, TimeStr);
+    PrintTextGraphicXY (DateStr, mScreenWidth - ((StrLen(DateStr) * mFontWidth) + 10), 5, mFontColorPixelAlt);
+    PrintTextGraphicXY (TimeStr, mScreenWidth - ((StrLen(DateStr) * mFontWidth) + 10), (mTextScale == 16) ? (mFontHeight + 5 + 2) : ((mFontHeight * 2) + 5 + 2), mFontColorPixelAlt);
   } else {
-    OcClearScreenArea (mBackgroundPixel, 0, 0, mScreenWidth, mFontHeight * 4);
+    ClearScreenArea (&mTransparentPixel, 0, 0, mScreenWidth, mFontHeight * 5);
   }
 }
 
@@ -1497,11 +1646,10 @@ PrintOcVersion (
   }
   
   NewString = AsciiStrCopyToUnicode (String, 0);
-  
   if (String != NULL && ShowAll) {
-    PrintTextGraphicXY (mScreenWidth - ((StrLen(NewString) * mFontWidth) + 10), mScreenHeight - (mFontHeight + 5), mFontColorPixelAlt, mBackgroundPixel, NewString);
+    PrintTextGraphicXY (NewString, mScreenWidth - ((StrLen(NewString) * mFontWidth) + 10), mScreenHeight - (mFontHeight + 5), mFontColorPixelAlt);
   } else {
-    OcClearScreenArea (mBackgroundPixel,
+    ClearScreenArea (&mTransparentPixel,
                        mScreenWidth - ((StrLen(NewString) * mFontWidth) * 2),
                        mScreenHeight - mFontHeight * 2,
                        (StrLen(NewString) * mFontWidth) * 2,
@@ -1519,9 +1667,9 @@ PrintDefaultBootMode (
   CHAR16             String[17];
   if (ShowAll) {
     UnicodeSPrint (String, sizeof (String), L"Auto default:%s", mAllowSetDefault ? L"Off" : L"On");
-    PrintTextGraphicXY (10, mScreenHeight - (mFontHeight + 5), mFontColorPixelAlt, mBackgroundPixel, String);
+    PrintTextGraphicXY (String, 10, mScreenHeight - (mFontHeight + 5), mFontColorPixelAlt);
   } else {
-    OcClearScreenArea (mBackgroundPixel,
+    ClearScreenArea (&mTransparentPixel,
                        0,
                        mScreenHeight - mFontHeight * 2,
                        mFontWidth * 2 * sizeof (String),
@@ -1545,22 +1693,22 @@ PrintTimeOutMessage (
   
   if (Timeout > 0) {
     UnicodeSPrint (String, sizeof (String), L"%s %02u %s.", L"The default boot selection will start in", Timeout, L"seconds"); //52
-    TextImage = CreatTextImage (mFontColorPixelAlt, mBackgroundPixel, String, TRUE);
-    NewImage = CreateFilledImage (mScreenWidth, TextImage->Height, FALSE, mBackgroundPixel);
+    TextImage = CreatTextImage (mFontColorPixelAlt, &mTransparentPixel, String, TRUE);
+    if (TextImage == NULL) {
+      return !(Timeout > 0);
+    }
+    NewImage = CreateFilledImage (mScreenWidth, TextImage->Height, TRUE, &mTransparentPixel);
     if (NewImage == NULL) {
       FreeImage (TextImage);
       return !(Timeout > 0);
     }
-    ComposeImage (NewImage, TextImage, (NewImage->Width - TextImage->Width) / 2, 0, FALSE, FALSE);
+    ComposeImage (NewImage, TextImage, (NewImage->Width - TextImage->Width) / 2, 0, TRUE, TRUE);
     if (TextImage != NULL) {
       FreeImage (TextImage);
     }
-    BltImage (NewImage, (mScreenWidth - NewImage->Width) / 2, (mScreenHeight / 4) * 3);
-    if (NewImage != NULL) {
-      FreeImage (NewImage);
-    }
+    BltImageAlpha (NewImage, (mScreenWidth - NewImage->Width) / 2, (mScreenHeight / 4) * 3, &mTransparentPixel, 16);
   } else {
-    OcClearScreenArea (mBackgroundPixel, 0, ((mScreenHeight / 4) * 3) - 4, mScreenWidth, mFontHeight * 2);
+    ClearScreenArea (&mTransparentPixel, 0, ((mScreenHeight / 4) * 3) - 4, mScreenWidth, mFontHeight * 2);
   }
   return !(Timeout > 0);
 }
@@ -1592,21 +1740,26 @@ PrintTextDesrciption (
                  Dmg ? L" (dmg)" : L""
                  );
   
-  TextImage = CreatTextImage (mFontColorPixel, mBackgroundPixel, String, TRUE);
-  NewImage = CreateFilledImage (mScreenWidth, TextImage->Height, FALSE, mBackgroundPixel);
+  TextImage = CreatTextImage (mFontColorPixel, &mTransparentPixel, String, TRUE);
+  if (TextImage == NULL) {
+    return;
+  }
+  NewImage = CreateFilledImage (mScreenWidth, TextImage->Height, TRUE, &mTransparentPixel);
   if (NewImage == NULL) {
     FreeImage (TextImage);
     return;
   }
-  
-  ComposeImage (NewImage, TextImage, (NewImage->Width - TextImage->Width) / 2, 0, FALSE, FALSE);
+  ComposeImage (NewImage, TextImage, (NewImage->Width - TextImage->Width) / 2, 0, TRUE, TRUE);
   if (TextImage != NULL) {
     FreeImage (TextImage);
   }
-  BltImage (NewImage, (mScreenWidth - NewImage->Width) / 2, (mScreenHeight / 2) + mIconSpaceSize);
-  if (NewImage != NULL) {
-    FreeImage (NewImage);
-  }
+ 
+  BltImageAlpha (NewImage,
+                 (mScreenWidth - NewImage->Width) / 2,
+                 (mScreenHeight / 2) + mIconSpaceSize,
+                 &mTransparentPixel,
+                 16
+                 );
 }
 
 EFI_STATUS
@@ -1641,9 +1794,9 @@ OcShowSimpleBootMenu (
   TimeoutExpired   = FALSE;
   TimeOutSeconds   = Context->TimeoutSeconds;
   mAllowSetDefault = Context->AllowSetDefault;
+  Storage          = Context->CustomEntryContext;
   mDefaultEntry    = DefaultEntry;
   
-  Storage = Context->CustomEntryContext;
   if (Storage->FileSystem != NULL && mFileSystem == NULL) {
     mFileSystem = Storage->FileSystem;
     DEBUG ((DEBUG_INFO, "OCSBM: FileSystem Found!\n"));
@@ -1662,7 +1815,7 @@ OcShowSimpleBootMenu (
   
   OcConsoleControlSetMode (EfiConsoleControlScreenGraphics);
   InitScreen ();
-  OcClearScreen (mBackgroundPixel);
+  ClearScreen (&mTransparentPixel);
   
   while (TRUE) {
     if (!TimeoutExpired) {
@@ -1687,14 +1840,14 @@ OcShowSimpleBootMenu (
                   VisibleIndex,
                   VisibleIndex,
                   BootEntries[Index].IsExternal,
-                  BootEntries[Index].IsFolder,
-                  DefaultEntry == Index
+                  BootEntries[Index].IsFolder
                   );
       ++VisibleIndex;
     }
     
-    OcClearScreenArea (mBackgroundPixel, 0, (mScreenHeight / 2) - mIconSpaceSize, mScreenWidth, mIconSpaceSize * 2);
-    BltImage (mMenuImage, (mScreenWidth - mMenuImage->Width) / 2, (mScreenHeight / 2) - mIconSpaceSize);
+    ClearScreenArea (&mTransparentPixel, 0, (mScreenHeight / 2) - mIconSpaceSize, mScreenWidth, mIconSpaceSize * 2);
+    BltMenuImage (mMenuImage, (mScreenWidth - mMenuImage->Width) / 2, (mScreenHeight / 2) - mIconSpaceSize);
+    SwitchIconSelection (VisibleIndex, Selected, TRUE);
     PrintTextDesrciption (MaxStrWidth,
                           Selected,
                           BootEntries[Selected].Name,
@@ -1725,6 +1878,7 @@ OcShowSimpleBootMenu (
           Status = OcSetDefaultBootEntry (Context, &BootEntries[DefaultEntry]);
           DEBUG ((DEBUG_INFO, "OCSBM: Setting default - %r\n", Status));
         }
+        FreeImage (mBackgroundImage);
         return EFI_SUCCESS;
       } else if (KeyIndex == OC_INPUT_ABORTED) {
         TimeOutSeconds = 0;
@@ -1779,6 +1933,7 @@ OcShowSimpleBootMenu (
           Status = OcSetDefaultBootEntry (Context, &BootEntries[VisibleList[KeyIndex]]);
           DEBUG ((DEBUG_INFO, "OCSBM: Setting default - %r\n", Status));
         }
+        FreeImage (mBackgroundImage);
         return EFI_SUCCESS;
       } else if (KeyIndex != OC_INPUT_TIMEOUT) {
         TimeOutSeconds = 0;
