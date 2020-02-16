@@ -274,6 +274,7 @@
   _(UINT32                      , PickerAttributes            ,     , 0                                   , ())                   \
   _(UINT32                      , TakeoffDelay                ,     , 0                                   , ())                   \
   _(UINT32                      , Timeout                     ,     , 0                                   , ())                   \
+  _(BOOLEAN                     , HideAuxiliary               ,     , FALSE                               , ())                   \
   _(BOOLEAN                     , HideSelf                    ,     , FALSE                               , ())                   \
   _(BOOLEAN                     , PollAppleHotKeys            ,     , FALSE                               , ())                   \
   _(BOOLEAN                     , ShowPicker                  ,     , FALSE                               , ())
@@ -314,8 +315,8 @@ typedef enum {
 #define OC_MISC_TOOLS_ENTRY_FIELDS(_, __) \
   _(OC_STRING                   , Arguments        ,     , OC_STRING_CONSTR ("", _, __), OC_DESTR (OC_STRING) ) \
   _(OC_STRING                   , Comment          ,     , OC_STRING_CONSTR ("", _, __), OC_DESTR (OC_STRING) ) \
+  _(BOOLEAN                     , Auxiliary        ,     , FALSE                       , ()                   ) \
   _(BOOLEAN                     , Enabled          ,     , FALSE                       , ()                   ) \
-  _(BOOLEAN                     , Hidden           ,     , FALSE                       , ()                   ) \
   _(OC_STRING                   , Name             ,     , OC_STRING_CONSTR ("", _, __), OC_DESTR (OC_STRING) ) \
   _(OC_STRING                   , Path             ,     , OC_STRING_CONSTR ("", _, __), OC_DESTR (OC_STRING) )
   OC_DECLARE (OC_MISC_TOOLS_ENTRY)
@@ -484,7 +485,6 @@ OC_DECLARE (OC_UEFI_INPUT)
   _(OC_STRING                   , ConsoleMode                 ,     , OC_STRING_CONSTR ("", _, __), OC_DESTR (OC_STRING)) \
   _(OC_STRING                   , Resolution                  ,     , OC_STRING_CONSTR ("", _, __), OC_DESTR (OC_STRING)) \
   _(OC_STRING                   , TextRenderer                ,     , OC_STRING_CONSTR ("", _, __), OC_DESTR (OC_STRING)) \
-  _(UINT32                      , Scale                       ,     , 100                         , ())                   \
   _(BOOLEAN                     , IgnoreTextInGraphics        ,     , FALSE  , ()) \
   _(BOOLEAN                     , ClearScreenOnModeSwitch     ,     , FALSE  , ()) \
   _(BOOLEAN                     , ProvideConsoleGop           ,     , FALSE  , ()) \

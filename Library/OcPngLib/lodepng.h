@@ -1,5 +1,5 @@
 /*
-LodePNG version 20200211
+LodePNG version 20200215
 
 Copyright (c) 2005-2020 Lode Vandevenne
 
@@ -29,15 +29,15 @@ freely, subject to the following restrictions:
 #ifdef EFIAPI
 
 #include <Uefi.h>
-#include <Library/UefiBootServicesTableLib.h>
+#include <Library/BaseLib.h>
 #include <Library/BaseMemoryLib.h>
-#include <Library/DebugLib.h>
+#include <Library/MemoryAllocationLib.h>
 
-#define LODEPNG_NO_COMPILE_CPP
 #define LODEPNG_NO_COMPILE_DISK
-#define LODEPNG_NO_COMPILE_ALLOCATORS
-#define LODEPNG_NO_COMPILE_ERROR_TEXT
 #define LODEPNG_NO_COMPILE_ANCILLARY_CHUNKS
+#define LODEPNG_NO_COMPILE_ERROR_TEXT
+#define LODEPNG_NO_COMPILE_ALLOCATORS
+#define LODEPNG_NO_COMPILE_CPP
 
 // Microsoft compiler has built-in size_t
 #define size_t UINTN
@@ -50,7 +50,6 @@ typedef INT16  int16_t;
 typedef INT8   int8_t;
 
 void* lodepng_malloc(size_t size);
-void* lodepng_realloc(void* ptr, size_t new_size);
 void lodepng_free(void* ptr);
 
 #else

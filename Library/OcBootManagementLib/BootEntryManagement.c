@@ -91,7 +91,6 @@ OcDescribeBootEntry (
   // BootPicker only uses it for entry deduplication, and we cannot figure out the name
   // on an encrypted volume anyway.
   //
-  BootEntry->Hidden = FALSE;
   //
   // Windows boot entry may have a custom name, so ensure OcBootWindows is set correctly.
   //
@@ -113,7 +112,7 @@ OcDescribeBootEntry (
        || !StrCmp (BootEntry->Name, L"Recovery"))) {
       if (BootEntry->Type == OcBootUnknown || BootEntry->Type == OcBootApple) {
         BootEntry->Type = OcBootAppleRecovery;
-        BootEntry->Hidden = TRUE;
+        BootEntry->IsAuxiliary = TRUE;
       }
       RecoveryBootName = InternalGetAppleRecoveryName (FileSystem, BootDirectoryName);
       if (RecoveryBootName != NULL) {
@@ -158,8 +157,6 @@ OcResetBootEntry (
     BootEntry->LoadOptions     = NULL;
     BootEntry->LoadOptionsSize = 0;
   }
-  
-  BootEntry->Hidden = FALSE;
 }
 
 VOID
@@ -256,7 +253,7 @@ internalFillCustomBootEntries (
       }
     }
     
-    Entries[EntryIndex].Hidden = Context->CustomEntries[Index].Hidden;
+    Entries[EntryIndex].IsAuxiliary = Context->CustomEntries[Index].Auxiliary;
     
     ++EntryIndex;
   }
@@ -297,7 +294,7 @@ OcScanForBootEntries (
     return EFI_OUT_OF_RESOURCES;
   }
 
-  if (Context->ShowNvramReset) {
+  if (Context->ShowNvramReset && !Context->HideAuxiliary) {
     Result = OcOverflowAddUN (EntriesSize, sizeof (OC_BOOT_ENTRY), &EntriesSize);
     if (Result) {
       return EFI_OUT_OF_RESOURCES;
@@ -305,12 +302,12 @@ OcScanForBootEntries (
   }
 
   Status = gBS->LocateHandleBuffer (
-                  ByProtocol,
-                  &gEfiSimpleFileSystemProtocolGuid,
-                  NULL,
-                  &NoHandles,
-                  &Handles
-                  );
+    ByProtocol,
+    &gEfiSimpleFileSystemProtocolGuid,
+    NULL,
+    &NoHandles,
+    &Handles
+    );
 
   if (EFI_ERROR (Status)) {
     return Status;
@@ -357,11 +354,11 @@ OcScanForBootEntries (
     ASSERT (DevPathScanInfo->NumBootInstances > 0);
 
     Result = OcOverflowMulAddUN (
-               DevPathScanInfo->NumBootInstances,
-               2 * sizeof (OC_BOOT_ENTRY),
-               EntriesSize,
-               &EntriesSize
-               );
+      DevPathScanInfo->NumBootInstances,
+      2 * sizeof (OC_BOOT_ENTRY),
+      EntriesSize,
+      &EntriesSize
+      );
     if (Result) {
       FreePool (Handles);
       FreePool (DevPathScanInfos);
@@ -468,7 +465,7 @@ OcScanForBootEntries (
       }
       
       Entries[EntryIndex].Type = OcBootCustom;
-      Entries[EntryIndex].Hidden = TRUE;
+      Entries[EntryIndex].IsAuxiliary = TRUE;
 
       UnicodeUefiSlashes (PathName);
       Entries[EntryIndex].PathName = PathName;
@@ -486,18 +483,15 @@ OcScanForBootEntries (
       ++EntryIndex;
     }
 
-    if (Context->ShowNvramReset) {
-      Entries[EntryIndex].Name = AllocateCopyPool (
-                                   L_STR_SIZE (L"Reset NVRAM"),
-                                   L"Reset NVRAM"
-                                   );
+    if (Context->ShowNvramReset && !Context->HideAuxiliary) {
+      Entries[EntryIndex].Name = AllocateCopyPool (L_STR_SIZE (L"Reset NVRAM"), L"Reset NVRAM");
       if (Entries[EntryIndex].Name == NULL) {
         OcFreeBootEntries (Entries, EntryIndex + 1);
         return EFI_OUT_OF_RESOURCES;
       }
 
       Entries[EntryIndex].Type         = OcBootSystem;
-      Entries[EntryIndex].Hidden       = FALSE;
+      Entries[EntryIndex].IsAuxiliary  = TRUE;
       Entries[EntryIndex].SystemAction = InternalSystemActionResetNvram;
       ++EntryIndex;
     }

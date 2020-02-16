@@ -145,7 +145,7 @@ STATIC UINT32 mGraphicsEfiColors[16] = {
   0x00980000,  // LIGHTRED
   0x00980098,  // MAGENTA
   0x00989800,  // BROWN
-  0x00989898,  // LIGHTGRAY
+  0x00bfbfbf,  // LIGHTGRAY
   0x00303030,  // DARKGRAY - BRIGHT BLACK
   0x000000ff,  // BLUE
   0x0000ff00,  // LIME
@@ -902,17 +902,23 @@ ConsoleControlInstall (
 
 VOID
 OcUseBuiltinTextOutput (
-  IN UINT32  Resolution
+  VOID
   )
 {
   EFI_STATUS  Status;
+  UINTN       UiScaleSize;
 
-  //
-  // TODO: Support more scales.
-  //
-  if (Resolution == 200) {
-    mFontScale = 2;
-  } else {
+  UiScaleSize = sizeof (mFontScale);
+
+  Status = gRT->GetVariable (
+    APPLE_UI_SCALE_VARIABLE_NAME,
+    &gAppleVendorVariableGuid,
+    NULL,
+    &UiScaleSize,
+    (VOID *) &mFontScale
+    );
+
+  if (EFI_ERROR (Status) || mFontScale != 2) {
     mFontScale = 1;
   }
 

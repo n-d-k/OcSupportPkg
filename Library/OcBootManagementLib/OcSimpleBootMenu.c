@@ -1177,7 +1177,10 @@ DecodePNGFile (
     FreePool (Buffer);
   }
   
-  FreePng (Data);
+  if (Data != NULL) {
+    FreePool (Data);
+  }
+  
   return NewImage;
 }
 
@@ -1241,7 +1244,6 @@ TakeScreenShot (
   Status = EncodePng (ImagePNG,
                       (UINTN) Image->Width,
                       (UINTN) Image->Height,
-                      8,
                       &Buffer,
                       &BufferSize
                       );
@@ -1259,7 +1261,9 @@ TakeScreenShot (
   
   Status = SetFileData (Fs, Path, Buffer, (UINT32) BufferSize);
   DEBUG ((DEBUG_INFO, "OCUI: Screenshot was taken - %r\n", Status));
-  FreePng (Buffer);
+  if (Buffer != NULL) {
+    FreePool (Buffer);
+  }
   if (Path != NULL) {
     FreePool (Path);
   }
@@ -1790,9 +1794,9 @@ OcShowSimpleBootMenu (
   
   Selected         = 0;
   VisibleIndex     = 0;
-  ShowAll          = FALSE;
   MaxStrWidth      = 0;
   TimeoutExpired   = FALSE;
+  ShowAll          = Context->HideAuxiliary;
   TimeOutSeconds   = Context->TimeoutSeconds;
   mAllowSetDefault = Context->AllowSetDefault;
   Storage          = Context->CustomEntryContext;
@@ -1827,8 +1831,9 @@ OcShowSimpleBootMenu (
     PrintOcVersion (Context->TitleSuffix, ShowAll);
     PrintDateTime (ShowAll);
     for (Index = 0, VisibleIndex = 0; Index < MIN (Count, OC_INPUT_MAX); ++Index) {
-      if ((BootEntries[Index].Hidden && !ShowAll)
-          || (BootEntries[Index].Type == OcBootSystem && !ShowAll)) {
+      if ((BootEntries[Index].IsAuxiliary && !ShowAll)
+          || (BootEntries[Index].Type == OcBootSystem && !ShowAll)
+          || (BootEntries[Index].IsAuxiliary && Context->HideAuxiliary)) {
         DefaultEntry = DefaultEntry == Index ? 0 : DefaultEntry;
         continue;
       }
@@ -1867,11 +1872,11 @@ OcShowSimpleBootMenu (
       if ((KeyIndex == OC_INPUT_TIMEOUT && TimeOutSeconds == 0) || KeyIndex == OC_INPUT_RETURN) {
         *ChosenBootEntry = &BootEntries[DefaultEntry];
         SetDefault = BootEntries[DefaultEntry].DevicePath != NULL
-          && !BootEntries[DefaultEntry].Hidden
+          && !BootEntries[DefaultEntry].IsAuxiliary
           && Context->AllowSetDefault
           && SetDefault;
         NewDefault = BootEntries[DefaultEntry].DevicePath != NULL
-          && !BootEntries[DefaultEntry].Hidden
+          && !BootEntries[DefaultEntry].IsAuxiliary
           && !Context->AllowSetDefault
           && mDefaultEntry != DefaultEntry;
         
@@ -1889,7 +1894,7 @@ OcShowSimpleBootMenu (
         TakeScreenShot (L"ScreenShot");
       } else if (KeyIndex == OC_INPUT_SPACEBAR) {
         ShowAll = !ShowAll;
-        while ((BootEntries[DefaultEntry].Hidden && !ShowAll && DefaultEntry > 0)
+        while ((BootEntries[DefaultEntry].IsAuxiliary && !ShowAll && DefaultEntry > 0)
                || (BootEntries[DefaultEntry].Type == OcBootSystem && !ShowAll && DefaultEntry > 0)) {
           --DefaultEntry;
         }
@@ -1923,11 +1928,11 @@ OcShowSimpleBootMenu (
         ASSERT (KeyIndex >= 0);
         *ChosenBootEntry = &BootEntries[VisibleList[KeyIndex]];
         SetDefault = BootEntries[VisibleList[KeyIndex]].DevicePath != NULL
-          && !BootEntries[VisibleList[KeyIndex]].Hidden
+          && !BootEntries[VisibleList[KeyIndex]].IsAuxiliary
           && Context->AllowSetDefault
           && SetDefault;
         NewDefault = BootEntries[VisibleList[KeyIndex]].DevicePath != NULL
-          && !BootEntries[VisibleList[KeyIndex]].Hidden
+          && !BootEntries[VisibleList[KeyIndex]].IsAuxiliary
           && !Context->AllowSetDefault
           && mDefaultEntry != VisibleList[KeyIndex];
         if (SetDefault || NewDefault) {

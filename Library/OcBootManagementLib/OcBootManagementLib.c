@@ -240,6 +240,13 @@ OcRunSimpleBootPicker (
     ForbidApple = FALSE;
   }
 
+  if (Context->PickerCommand != OcPickerShowPicker && Context->PickerCommand != OcPickerDefault) {
+    //
+    // We cannot ignore auxiliary entries for all other modes.
+    //
+    Context->HideAuxiliary = FALSE;
+  }
+
   while (TRUE) {
     DEBUG ((DEBUG_INFO, "OCB: Performing OcScanForBootEntries...\n"));
 
@@ -295,7 +302,7 @@ OcRunSimpleBootPicker (
       return InternalSystemActionResetNvram ();
     } else {
       Chosen = &Entries[DefaultEntry];
-      if ((CurrentDefault != DefaultEntry && !Context->AllowSetDefault && !Chosen->Hidden)
+      if ((CurrentDefault != DefaultEntry && !Context->AllowSetDefault && !Chosen->IsAuxiliary)
           || (Context->PickerCommand == OcPickerBootWindows && !Context->AllowSetDefault)
           || (Context->PickerCommand == OcPickerBootApple && !Context->AllowSetDefault)
           ) {

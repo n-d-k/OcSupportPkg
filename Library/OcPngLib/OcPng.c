@@ -18,6 +18,7 @@ WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.
 #include <Base.h>
 #include <Library/DebugLib.h>
 #include <Library/BaseMemoryLib.h>
+#include <Library/OcPngLib.h>
 #include "lodepng.h"
 
 EFI_STATUS
@@ -37,6 +38,9 @@ GetPngDims (
   // Init state
   //
   lodepng_state_init (&State);
+  State.decoder.ignore_crc                  = TRUE;
+  State.decoder.zlibsettings.ignore_adler32 = TRUE;
+  State.decoder.zlibsettings.ignore_nlen    = TRUE;
 
   //
   // Reads header and resets other parameters in state->info_png
@@ -50,8 +54,8 @@ GetPngDims (
     return EFI_INVALID_PARAMETER;
   }
 
-  *Width = W;
-  *Height = H;
+  *Width  = (UINT32) W;
+  *Height = (UINT32) H;
 
   return EFI_SUCCESS;
 }
@@ -75,6 +79,11 @@ DecodePng (
   // Init lodepng state
   //
   lodepng_state_init (&State);
+  State.info_raw.colortype                  = LCT_RGBA;
+  State.info_raw.bitdepth                   = 8;
+  State.decoder.ignore_crc                  = TRUE;
+  State.decoder.zlibsettings.ignore_adler32 = TRUE;
+  State.decoder.zlibsettings.ignore_nlen    = TRUE;
 
   //
   // It should return 0 on success
@@ -87,14 +96,14 @@ DecodePng (
     return EFI_INVALID_PARAMETER;
   }
 
-  *Width = W;
-  *Height = H;
+  *Width  = (UINT32) W;
+  *Height = (UINT32) H;
 
   if (HasAlphaType != NULL) {
     //
     // Check alpha layer existence
     //
-    *HasAlphaType = lodepng_is_alpha_type (&State.info_png.color) == 1;
+    *HasAlphaType = lodepng_is_alpha_type (&State.info_png.color) != 0;
   }
 
   //
@@ -103,7 +112,6 @@ DecodePng (
   lodepng_state_cleanup (&State);
 
   return EFI_SUCCESS;
-
 }
 
 EFI_STATUS
@@ -111,53 +119,21 @@ EncodePng (
   IN  VOID    *RawData,
   IN  UINT32  Width,
   IN  UINT32  Height,
-  IN  UINT8   BitDepth,
   OUT VOID    **Buffer,
   OUT UINTN   *BufferSize
   )
 {
-  LodePNGState      State;
   unsigned          Error;
-
-  //
-  // Init lodepng state
-  //
-  lodepng_state_init (&State);
-
-  State.info_raw.colortype = LCT_RGBA;
-  State.info_raw.bitdepth = BitDepth;
-  State.info_png.color.colortype = LCT_RGBA;
-  State.info_png.color.bitdepth = BitDepth;
 
   //
   // It should return 0 on success
   //
-  Error = lodepng_encode ((unsigned char **) Buffer, BufferSize, RawData, Width, Height, &State);
+  Error = lodepng_encode32 ((unsigned char **) Buffer, BufferSize, RawData, Width, Height);
 
   if (Error != 0) {
     DEBUG ((DEBUG_INFO, "OcPngLib: Error while encoding PNG image\n"));
-    lodepng_state_cleanup (&State);
     return EFI_INVALID_PARAMETER;
   }
 
-  //
-  // Cleanup state
-  //
-  lodepng_state_cleanup (&State);
-
   return EFI_SUCCESS;
-
-}
-
-/**
-  Frees image buffer
-
-  @param  Buffer                 Buffer with desired png image
-**/
-VOID
-FreePng (
-  IN VOID  *Buffer
-  )
-{
-  lodepng_free (Buffer);
 }

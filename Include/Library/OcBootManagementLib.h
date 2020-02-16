@@ -91,9 +91,9 @@ typedef struct OC_BOOT_ENTRY_ {
   //
   BOOLEAN                   IsFolder;
   //
-  // Set whether or not it's visible in boot picker menu
+  // Set when this entry is considered auxiliary.
   //
-  BOOLEAN                   Hidden;
+  BOOLEAN                   IsAuxiliary;
   //
   // Load option data (usually "boot args") size.
   //
@@ -300,7 +300,9 @@ EFI_STATUS
   IN  OC_BOOT_ENTRY               *ChosenEntry,
   OUT VOID                        **Data,
   OUT UINT32                      *DataSize,
-  OUT EFI_DEVICE_PATH_PROTOCOL    **DevicePath OPTIONAL
+  OUT EFI_DEVICE_PATH_PROTOCOL    **DevicePath         OPTIONAL,
+  OUT EFI_HANDLE                  *ParentDeviceHandle  OPTIONAL,
+  OUT EFI_DEVICE_PATH_PROTOCOL    **ParentFilePath     OPTIONAL
   );
 
 /**
@@ -320,9 +322,9 @@ typedef struct {
   //
   CONST CHAR8  *Arguments;
   //
-  // Boolean Hidden.
+  // Whether this entry is auxiliary.
   //
-  BOOLEAN      Hidden;
+  BOOLEAN      Auxiliary;
 } OC_PICKER_ENTRY;
 
 /**
@@ -432,6 +434,10 @@ typedef struct {
   // Allow setting default boot option from boot menu.
   //
   BOOLEAN          AllowSetDefault;
+  //
+  // Hide and do not scan auxiliary entries.
+  //
+  BOOLEAN          HideAuxiliary;
   //
   // Additional boot arguments for Apple loaders.
   //

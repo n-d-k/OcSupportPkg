@@ -82,19 +82,8 @@ EncodePng (
   IN  VOID    *RawData,
   IN  UINT32  Width,
   IN  UINT32  Height,
-  IN  UINT8   BitDepth,
   OUT VOID    **Buffer,
   OUT UINTN   *BufferSize
-  );
-
-/**
-  Frees image buffer
-
-  @param  Buffer                 Buffer with desired png image
-**/
-VOID
-FreePng (
-  IN  VOID      *Buffer
   );
 
 #endif
