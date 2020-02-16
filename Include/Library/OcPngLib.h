@@ -70,7 +70,6 @@ DecodePng (
   @param  RawData               RawData from png image
   @param  Width                 Image width
   @param  Height                Image height
-  @param  BitDepth              BitDept, 8 or 16
   @param  Buffer                Output buffer
   @param  BufferSize            Output size
 
