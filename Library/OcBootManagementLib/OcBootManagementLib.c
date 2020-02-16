@@ -76,6 +76,7 @@ OcShowSimplePasswordRequest (
 
   OcConsoleControlSetMode (EfiConsoleControlScreenText);
   gST->ConOut->EnableCursor (gST->ConOut, FALSE);
+  gST->ConOut->TestString (gST->ConOut, OC_CONSOLE_CLEAR_AND_CLIP);
   gST->ConOut->ClearScreen (gST->ConOut);
 
   for (Index = 0; Index < 3; ++Index) {
