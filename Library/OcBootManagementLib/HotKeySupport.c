@@ -343,10 +343,17 @@ OcWaitForAppleKeyIndex (
         OcKeyMapFlush (KeyMap, Keys[0], TRUE);
         return OC_INPUT_DOWN;
       }
-      
-      if (Keys[0] == AppleHidUsbKbUsageKeyF10) {
+
+      STATIC_ASSERT (AppleHidUsbKbUsageKeyF1 + 11 == AppleHidUsbKbUsageKeyF12, "Unexpected encoding");
+      if (Keys[0] >= AppleHidUsbKbUsageKeyF1 && Keys[0] <= AppleHidUsbKbUsageKeyF12) {
         OcKeyMapFlush (KeyMap, Keys[0], TRUE);
-        return OC_INPUT_F10;
+        return OC_INPUT_FUNCTIONAL (Keys[0] - AppleHidUsbKbUsageKeyF1 + 1);
+      }
+
+      STATIC_ASSERT (AppleHidUsbKbUsageKeyF13 + 11 == AppleHidUsbKbUsageKeyF24, "Unexpected encoding");
+      if (Keys[0] >= AppleHidUsbKbUsageKeyF13 && Keys[0] <= AppleHidUsbKbUsageKeyF24) {
+        OcKeyMapFlush (KeyMap, Keys[0], TRUE);
+        return OC_INPUT_FUNCTIONAL (Keys[0] - AppleHidUsbKbUsageKeyF13 + 13);
       }
       
       STATIC_ASSERT (AppleHidUsbKbUsageKeyOne + 8 == AppleHidUsbKbUsageKeyNine, "Unexpected encoding");

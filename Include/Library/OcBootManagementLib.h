@@ -654,7 +654,7 @@ OcLoadPickerHotKeys (
 #define OC_INPUT_DOWN     -5 ///< Arrow Down
 #define OC_INPUT_RETURN   -6 ///< Enter/Return key
 #define OC_INPUT_SPACEBAR -7 ///< SpaceBar
-#define OC_INPUT_F10      -8 ///< F10
+#define OC_INPUT_FUNCTIONAL(x) (-20 - (x))  ///< Functional hotkeys
 
 /**
   Obtains key index from user input.
