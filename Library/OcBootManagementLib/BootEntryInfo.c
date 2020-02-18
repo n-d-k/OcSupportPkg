@@ -571,15 +571,6 @@ InternalFillValidBootEntries (
       Entries[EntryIndex].IsExternal = DevPathScanInfo->IsExternal;
       InternalSetBootEntryFlags (&Entries[EntryIndex]);
       
-      //
-      // This entry can still be legacy HFS non-dmg recovery, ensure that it is not.
-      //
-      if (Context->HideAuxiliary && Entries[EntryIndex].Type == OcBootAppleRecovery) {
-        ZeroMem (&Entries[EntryIndex], sizeof (Entries[EntryIndex]));
-        FreePool (DevicePath);
-        continue;
-      }
-      
       DEBUG ((
         DEBUG_BULK_INFO,
         "OCB: Adding entry %u, external - %d, skip recovery - %d\n",

@@ -1054,7 +1054,6 @@ PrintTextGraphicXY (
   IN INTN                             Xpos,
   IN INTN                             Ypos,
   IN EFI_GRAPHICS_OUTPUT_BLT_PIXEL    *FontColor
-  
   )
 {
   EFI_IMAGE_OUTPUT                    *TextImage;
@@ -1796,7 +1795,7 @@ OcShowSimpleBootMenu (
   VisibleIndex     = 0;
   MaxStrWidth      = 0;
   TimeoutExpired   = FALSE;
-  ShowAll          = Context->HideAuxiliary;
+  ShowAll          = !Context->HideAuxiliary;
   TimeOutSeconds   = Context->TimeoutSeconds;
   mAllowSetDefault = Context->AllowSetDefault;
   Storage          = Context->CustomEntryContext;
@@ -1831,9 +1830,10 @@ OcShowSimpleBootMenu (
     PrintOcVersion (Context->TitleSuffix, ShowAll);
     PrintDateTime (ShowAll);
     for (Index = 0, VisibleIndex = 0; Index < MIN (Count, OC_INPUT_MAX); ++Index) {
-      if ((BootEntries[Index].IsAuxiliary && !ShowAll)
-          || (BootEntries[Index].Type == OcBootSystem && !ShowAll)
-          || (BootEntries[Index].IsAuxiliary && Context->HideAuxiliary)) {
+      if ((BootEntries[Index].Type == OcBootAppleRecovery && !ShowAll)
+          || (BootEntries[Index].Type == OcBootUnknown && !ShowAll)
+          || (BootEntries[Index].DevicePath == NULL && !ShowAll)
+          || (BootEntries[Index].IsAuxiliary && !ShowAll)) {
         DefaultEntry = DefaultEntry == Index ? 0 : DefaultEntry;
         continue;
       }

@@ -198,8 +198,10 @@ OcRunSimpleBootPicker (
   INTN                               DefaultEntry;
   INTN                               CurrentDefault;
   BOOLEAN                            ForbidApple;
+  BOOLEAN                            Hidden;
 
   DefaultEntry = HotkeyNumber;
+  Hidden = Context->HideAuxiliary;
   
   AppleBootPolicy = OcAppleBootPolicyInstallProtocol (FALSE);
   if (AppleBootPolicy == NULL) {
@@ -241,16 +243,9 @@ OcRunSimpleBootPicker (
     ForbidApple = FALSE;
   }
 
-  if (Context->PickerCommand != OcPickerShowPicker && Context->PickerCommand != OcPickerDefault) {
-    //
-    // We cannot ignore auxiliary entries for all other modes.
-    //
-    Context->HideAuxiliary = FALSE;
-  }
-
   while (TRUE) {
     DEBUG ((DEBUG_INFO, "OCB: Performing OcScanForBootEntries...\n"));
-
+    Context->HideAuxiliary = FALSE;
     Status = OcScanForBootEntries (
       AppleBootPolicy,
       Context,
@@ -259,7 +254,8 @@ OcRunSimpleBootPicker (
       NULL,
       TRUE
       );
-
+    
+    Context->HideAuxiliary = Hidden;
     if (EFI_ERROR (Status)) {
       DEBUG ((DEBUG_ERROR, "OCB: OcScanForBootEntries failure - %r\n", Status));
       return Status;
