@@ -1885,6 +1885,7 @@ OcShowSimpleBootMenu (
           DEBUG ((DEBUG_INFO, "OCSBM: Setting default - %r\n", Status));
         }
         FreeImage (mBackgroundImage);
+        ClearScreenArea (&mBlackPixel, 0, 0, mScreenWidth, mScreenHeight);
         return EFI_SUCCESS;
       } else if (KeyIndex == OC_INPUT_ABORTED) {
         TimeOutSeconds = 0;
@@ -1940,6 +1941,7 @@ OcShowSimpleBootMenu (
           DEBUG ((DEBUG_INFO, "OCSBM: Setting default - %r\n", Status));
         }
         FreeImage (mBackgroundImage);
+        ClearScreenArea (&mBlackPixel, 0, 0, mScreenWidth, mScreenHeight);
         return EFI_SUCCESS;
       } else if (KeyIndex != OC_INPUT_TIMEOUT) {
         TimeOutSeconds = 0;
