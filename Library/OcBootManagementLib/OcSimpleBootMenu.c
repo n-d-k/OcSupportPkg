@@ -703,9 +703,9 @@ CopyScaledImage (
     NewImage = CopyImage (OldImage);
   } else {
     NewImage = CreateImage (NewW, NewH);
-    if (NewImage == NULL)
+    if (NewImage == NULL) {
       return NULL;
-
+    }
     Dest = NewImage->Image.Bitmap;
     for (y = 0; y < NewH; y++) {
       y1 = (y << 4) / Ratio;
@@ -1790,6 +1790,7 @@ OcShowSimpleBootMenu (
   BOOLEAN                            NewDefault;
   BOOLEAN                            TimeoutExpired;
   OC_STORAGE_CONTEXT                 *Storage;
+  EFI_CONSOLE_CONTROL_SCREEN_MODE    OldMode;
   
   Selected         = 0;
   VisibleIndex     = 0;
@@ -1817,7 +1818,7 @@ OcShowSimpleBootMenu (
     MaxStrWidth = MaxStrWidth > StrWidth ? MaxStrWidth : StrWidth;
   }
   
-  OcConsoleControlSetMode (EfiConsoleControlScreenGraphics);
+  OldMode = OcConsoleControlSetMode (EfiConsoleControlScreenGraphics);
   InitScreen ();
   ClearScreen (&mTransparentPixel);
   
@@ -1886,6 +1887,7 @@ OcShowSimpleBootMenu (
         }
         FreeImage (mBackgroundImage);
         ClearScreenArea (&mBlackPixel, 0, 0, mScreenWidth, mScreenHeight);
+        OcConsoleControlSetMode (OldMode);
         return EFI_SUCCESS;
       } else if (KeyIndex == OC_INPUT_ABORTED) {
         TimeOutSeconds = 0;
@@ -1942,6 +1944,7 @@ OcShowSimpleBootMenu (
         }
         FreeImage (mBackgroundImage);
         ClearScreenArea (&mBlackPixel, 0, 0, mScreenWidth, mScreenHeight);
+        OcConsoleControlSetMode (OldMode);
         return EFI_SUCCESS;
       } else if (KeyIndex != OC_INPUT_TIMEOUT) {
         TimeOutSeconds = 0;
