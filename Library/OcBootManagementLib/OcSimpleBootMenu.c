@@ -1774,10 +1774,12 @@ RestoreConsoleMode (
 {
   FreeImage (mBackgroundImage);
   ClearScreenArea (&mBlackPixel, 0, 0, mScreenWidth, mScreenHeight);
-  OcConsoleControlSetMode (EfiConsoleControlScreenText);
+  mUiScale = 0;
+  mTextScale = 0;
   if (Context->ConsoleAttributes != 0) {
     gST->ConOut->SetAttribute (gST->ConOut, Context->ConsoleAttributes & 0x7FU);
   }
+  gST->ConOut->SetCursorPosition (gST->ConOut, 0, 0);
 }
 
 EFI_STATUS
@@ -1831,7 +1833,6 @@ OcShowSimpleBootMenu (
     MaxStrWidth = MaxStrWidth > StrWidth ? MaxStrWidth : StrWidth;
   }
   
-  OcConsoleControlSetMode (EfiConsoleControlScreenGraphics);
   InitScreen ();
   ClearScreen (&mTransparentPixel);
   
