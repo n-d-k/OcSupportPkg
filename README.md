@@ -31,8 +31,6 @@ Additional features/changes implemented by this fork
 OcSupportPkg
 ============
 
-[![Build Status](https://travis-ci.com/acidanthera/OcSupportPkg.svg?branch=master)](https://travis-ci.com/acidanthera/OcSupportPkg)
-
 Additional UEFI support common libraries shared by other projects in [Acidanthera](https://github.com/acidanthera). The primary purpose of the library set is to provide supplemental functionality for Apple-specific UEFI drivers.
 
 Early history of the codebase could be found in [AppleSupportPkg](https://github.com/acidanthera/AppleSupportPkg) and PicoLib library set by The HermitCrabs Lab.
