@@ -106,6 +106,9 @@ mMenuImage = NULL;
 BOOLEAN
 mSelectorUsed = TRUE;
 
+BOOLEAN
+mAlphaEffect = TRUE;
+
 STATIC
 INTN
 mMenuFadeIntensity = 150;     // ranging from 0 to 255 0 = completely disappear, 255 = no fading.
@@ -971,7 +974,7 @@ BltMenuImage (
                 NewImage->Height,
                 NewImage->Width,
                 Image->Width,
-                TRUE
+                mAlphaEffect
                 );
   
   DrawImageArea (NewImage, 0, 0, 0, 0, Xpos, Ypos);
@@ -1452,7 +1455,7 @@ SwitchIconSelection (
                 Icon->Height,
                 NewImage->Width,
                 Icon->Width,
-                !Selected
+                (!Selected && mAlphaEffect)
                 );
   
   FreeImage (Icon);
@@ -1517,7 +1520,9 @@ ClearScreen (
     }
   }
   
-  if (FileExist (L"EFI\\OC\\Icons\\No_selector.png")) {
+  if (FileExist (L"EFI\\OC\\Icons\\No_alpha.png")) {
+    mAlphaEffect = FALSE;
+  } else if (FileExist (L"EFI\\OC\\Icons\\No_selector.png")) {
     mSelectorUsed = FALSE;
   }
 }
