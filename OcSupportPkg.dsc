@@ -53,6 +53,7 @@
   OcAppleRamDiskLib|OcSupportPkg/Library/OcAppleRamDiskLib/OcAppleRamDiskLib.inf
   OcAppleSecureBootLib|OcSupportPkg/Library/OcAppleSecureBootLib/OcAppleSecureBootLib.inf
   OcAppleUserInterfaceThemeLib|OcSupportPkg/Library/OcAppleUserInterfaceThemeLib/OcAppleUserInterfaceThemeLib.inf
+  OcAudioLib|OcSupportPkg/Library/OcAudioLib/OcAudioLib.inf
   OcBootManagementLib|OcSupportPkg/Library/OcBootManagementLib/OcBootManagementLib.inf
   OcCompressionLib|OcSupportPkg/Library/OcCompressionLib/OcCompressionLib.inf
   OcConsoleControlEntryModeLib|OcSupportPkg/Library/OcConsoleControlEntryModeLib/OcConsoleControlEntryModeLib.inf
@@ -69,6 +70,7 @@
   OcFirmwareVolumeLib|OcSupportPkg/Library/OcFirmwareVolumeLib/OcFirmwareVolumeLib.inf
   OcGuardLib|OcSupportPkg/Library/OcGuardLib/OcGuardLib.inf
   OcHashServicesLib|OcSupportPkg/Library/OcHashServicesLib/OcHashServicesLib.inf
+  OcHdaDevicesLib|OcSupportPkg/Library/OcHdaDevicesLib/OcHdaDevicesLib.inf
   OcHeciLib|OcSupportPkg/Library/OcHeciLib/OcHeciLib.inf
   OcInputLib|OcSupportPkg/Library/OcInputLib/OcInputLib.inf
   OcMachoLib|OcSupportPkg/Library/OcMachoLib/OcMachoLib.inf
@@ -104,6 +106,7 @@
 
 [Components]
   OcSupportPkg/Application/BootKicker/BootKicker.inf
+  OcSupportPkg/Application/ChipTune/ChipTune.inf
   OcSupportPkg/Application/CleanNvram/CleanNvram.inf
   OcSupportPkg/Application/GopStop/GopStop.inf
   OcSupportPkg/Application/PavpProvision/PavpProvision.inf
@@ -123,6 +126,7 @@
   OcSupportPkg/Library/OcAppleRamDiskLib/OcAppleRamDiskLib.inf
   OcSupportPkg/Library/OcAppleSecureBootLib/OcAppleSecureBootLib.inf
   OcSupportPkg/Library/OcAppleUserInterfaceThemeLib/OcAppleUserInterfaceThemeLib.inf
+  OcSupportPkg/Library/OcAudioLib/OcAudioLib.inf
   OcSupportPkg/Library/OcBootManagementLib/OcBootManagementLib.inf
   OcSupportPkg/Library/OcCompilerIntrinsicsLib/OcCompilerIntrinsicsLib.inf
   OcSupportPkg/Library/OcCompressionLib/OcCompressionLib.inf
@@ -142,6 +146,7 @@
   OcSupportPkg/Library/OcFirmwareVolumeLib/OcFirmwareVolumeLib.inf
   OcSupportPkg/Library/OcGuardLib/OcGuardLib.inf
   OcSupportPkg/Library/OcHashServicesLib/OcHashServicesLib.inf
+  OcSupportPkg/Library/OcHdaDevicesLib/OcHdaDevicesLib.inf
   OcSupportPkg/Library/OcHeciLib/OcHeciLib.inf
   OcSupportPkg/Library/OcInputLib/OcInputLib.inf
   OcSupportPkg/Library/OcMachoLib/OcMachoLib.inf
