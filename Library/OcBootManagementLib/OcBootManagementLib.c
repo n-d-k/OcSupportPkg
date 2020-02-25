@@ -22,7 +22,9 @@
 
 #include <Protocol/AppleBootPolicy.h>
 #include <Protocol/AppleKeyMapAggregator.h>
+#include <Protocol/AppleBeepGen.h>
 #include <Protocol/LoadedImage.h>
+#include <Protocol/OcAudio.h>
 #include <Protocol/SimpleTextOut.h>
 
 #include <Library/BaseLib.h>
@@ -47,9 +49,193 @@
 #include <Library/UefiLib.h>
 
 EFI_STATUS
+OcPlayAudioFile (
+  IN     OC_PICKER_CONTEXT  *Context,
+  IN     UINT32             File,
+  IN     BOOLEAN            Fallback
+  )
+{
+  EFI_STATUS  Status;
+
+  if (!Context->PickerAudioAssist) {
+    return EFI_SUCCESS;
+  }
+
+  if (Context->OcAudio == NULL) {
+    Status = gBS->LocateProtocol (
+      &gOcAudioProtocolGuid,
+      NULL,
+      (VOID **) &Context->OcAudio
+      );
+    if (EFI_ERROR (Status)) {
+      Context->OcAudio = NULL;
+    }
+  }
+
+  if (Context->OcAudio != NULL) {
+    Context->OcAudio->StopPlayback (Context->OcAudio, TRUE);
+    Status = Context->OcAudio->PlayFile (Context->OcAudio, File);
+  }
+
+  if (Fallback && EFI_ERROR (Status)) {
+    switch (File) {
+      case AppleVoiceOverAudioFileBeep:
+        Status = OcPlayAudioBeep (
+            Context,
+            OC_VOICE_OVER_SIGNALS_NORMAL,
+            OC_VOICE_OVER_SIGNAL_NORMAL_MS,
+            OC_VOICE_OVER_SILENCE_NORMAL_MS
+            );
+        break;
+      case OcVoiceOverAudioFileEnterPassword:
+        Status = OcPlayAudioBeep (
+          Context,
+          OC_VOICE_OVER_SIGNALS_PASSWORD,
+          OC_VOICE_OVER_SIGNAL_NORMAL_MS,
+          OC_VOICE_OVER_SILENCE_NORMAL_MS
+          );
+        break;
+      case OcVoiceOverAudioFilePasswordAccepted:
+        Status = OcPlayAudioBeep (
+          Context,
+          OC_VOICE_OVER_SIGNALS_PASSWORD_OK,
+          OC_VOICE_OVER_SIGNAL_NORMAL_MS,
+          OC_VOICE_OVER_SILENCE_NORMAL_MS
+          );
+        break;
+      case OcVoiceOverAudioFilePasswordIncorrect:
+        Status = OcPlayAudioBeep (
+          Context,
+          OC_VOICE_OVER_SIGNALS_ERROR,
+          OC_VOICE_OVER_SIGNAL_ERROR_MS,
+          OC_VOICE_OVER_SILENCE_ERROR_MS
+          );
+        break;
+      case OcVoiceOverAudioFilePasswordRetryLimit:
+        Status = OcPlayAudioBeep (
+          Context,
+          OC_VOICE_OVER_SIGNALS_HWERROR,
+          OC_VOICE_OVER_SIGNAL_ERROR_MS,
+          OC_VOICE_OVER_SILENCE_ERROR_MS
+          );
+        break;
+      case OcVoiceOverAudioFileExecutionFailure:
+        Status = OcPlayAudioBeep (
+          Context,
+          OC_VOICE_OVER_SIGNALS_ERROR,
+          OC_VOICE_OVER_SIGNAL_ERROR_MS,
+          OC_VOICE_OVER_SIGNAL_NORMAL_MS
+          );
+        break;
+      default:
+        //
+        // Should we introduce some special code?
+        //
+        break;
+    }
+  }
+
+  return Status;
+}
+
+EFI_STATUS
+OcPlayAudioBeep (
+  IN     OC_PICKER_CONTEXT        *Context,
+  IN     UINT32                   ToneCount,
+  IN     UINT32                   ToneLength,
+  IN     UINT32                   SilenceLength
+  )
+{
+  EFI_STATUS  Status;
+
+  if (!Context->PickerAudioAssist) {
+    return EFI_SUCCESS;
+  }
+
+  if (Context->BeepGen == NULL) {
+    Status = gBS->LocateProtocol (
+      &gAppleBeepGenProtocolGuid,
+      NULL,
+      (VOID **) &Context->BeepGen
+      );
+    if (EFI_ERROR (Status)) {
+      return Status;
+    }
+  }
+
+  if (Context->BeepGen->GenBeep == NULL) {
+    return EFI_UNSUPPORTED;
+  }
+
+  return Context->BeepGen->GenBeep (ToneCount, ToneLength, SilenceLength);
+}
+
+EFI_STATUS
+OcPlayAudioEntry (
+  IN     OC_PICKER_CONTEXT  *Context,
+  IN     OC_BOOT_ENTRY      *Entry,
+  IN     UINT32             Number
+  )
+{
+  OcPlayAudioFile (Context, OcVoiceOverAudioFileIndexBase + Number, FALSE);
+
+  if (Entry->Type == OcBootApple) {
+    OcPlayAudioFile (Context, OcVoiceOverAudioFilemacOS, FALSE);
+  } else if (Entry->Type == OcBootAppleRecovery) {
+    OcPlayAudioFile (Context, OcVoiceOverAudioFilemacOS_Recovery, FALSE);
+  } else if (Entry->Type == OcBootWindows) {
+    OcPlayAudioFile (Context, OcVoiceOverAudioFileWindows, FALSE);
+  } else if (StrStr (Entry->Name, OC_MENU_UEFI_SHELL_ENTRY) != NULL) {
+    OcPlayAudioFile (Context, OcVoiceOverAudioFileUEFI_Shell, FALSE);
+  } else if (StrStr (Entry->Name, OC_MENU_RESET_NVRAM_ENTRY) != NULL) {
+    OcPlayAudioFile (Context, OcVoiceOverAudioFileResetNVRAM, FALSE);
+  } else if (Entry->Type == OcBootCustom) {
+    OcPlayAudioFile (Context, OcVoiceOverAudioFileExternalOption, FALSE);
+  } else {
+    OcPlayAudioFile (Context, OcVoiceOverAudioFileOtherOS, FALSE);
+  }
+
+  if (Entry->IsFolder) {
+    OcPlayAudioFile (Context, OcVoiceOverAudioFileDiskImage, FALSE);
+  }
+
+  if (Entry->IsExternal) {
+    OcPlayAudioFile (Context, OcVoiceOverAudioFileExternal, FALSE);
+  }
+
+  return EFI_SUCCESS;
+}
+
+STATIC
+VOID
+OcToggleVoiceOver (
+  IN  OC_PICKER_CONTEXT  *Context,
+  IN  UINT32             File  OPTIONAL
+  )
+{
+  if (!Context->PickerAudioAssist) {
+    Context->PickerAudioAssist = TRUE;
+    OcPlayAudioFile (Context, OcVoiceOverAudioFileWelcome, FALSE);
+
+    if (File != 0) {
+      OcPlayAudioFile (Context, File, TRUE);
+    }
+  } else {
+    OcPlayAudioBeep (
+      Context,
+      OC_VOICE_OVER_SIGNALS_ERROR,
+      OC_VOICE_OVER_SIGNAL_ERROR_MS,
+      OC_VOICE_OVER_SILENCE_ERROR_MS
+      );
+    Context->PickerAudioAssist = FALSE;
+  }
+}
+
+EFI_STATUS
 EFIAPI
 OcShowSimplePasswordRequest (
-  IN VOID                *Context,
+  IN OC_PICKER_CONTEXT   *Context,
+  IN VOID                *PrivilegeContext,
   IN OC_PRIVILEGE_LEVEL  Level
   )
 {
@@ -68,7 +254,7 @@ OcShowSimplePasswordRequest (
     return EFI_SUCCESS;
   }
 
-  Privilege = (OC_PRIVILEGE_CONTEXT *)Context;
+  Privilege = (OC_PRIVILEGE_CONTEXT *) PrivilegeContext;
 
   if (Privilege->CurrentLevel >= Level) {
     return EFI_SUCCESS;
@@ -88,7 +274,8 @@ OcShowSimplePasswordRequest (
       Status = gST->ConIn->ReadKeyStroke (gST->ConIn, &Key);
     } while (!EFI_ERROR (Status));
 
-    gST->ConOut->OutputString (gST->ConOut, L"Password: ");
+    gST->ConOut->OutputString (gST->ConOut, OC_MENU_PASSWORD_REQUEST);
+    OcPlayAudioFile (Context, OcVoiceOverAudioFileEnterPassword, TRUE);
 
     while (TRUE) {
       Status = gST->ConIn->ReadKeyStroke (gST->ConIn, &Key);
@@ -100,7 +287,20 @@ OcShowSimplePasswordRequest (
         SecureZeroMem (&Key.UnicodeChar, sizeof (Key.UnicodeChar));
 
         DEBUG ((DEBUG_ERROR, "Input device error\r\n"));
+        OcPlayAudioBeep (
+          Context,
+          OC_VOICE_OVER_SIGNALS_HWERROR,
+          OC_VOICE_OVER_SIGNAL_ERROR_MS,
+          OC_VOICE_OVER_SILENCE_ERROR_MS
+          );
         return EFI_ABORTED;
+      }
+
+      //
+      // TODO: We should really switch to Apple input here.
+      //
+      if (Key.ScanCode == SCAN_F5) {
+        OcToggleVoiceOver (Context, OcVoiceOverAudioFileEnterPassword);
       }
 
       if (Key.ScanCode == SCAN_ESC) {
@@ -139,22 +339,35 @@ OcShowSimplePasswordRequest (
                          );
         }
 
+        OcPlayAudioFile (Context, AppleVoiceOverAudioFileBeep, TRUE);
         continue;
       } else if (Key.UnicodeChar == CHAR_NULL
        || (UINT8)Key.UnicodeChar != Key.UnicodeChar) {
         //
         // Only ASCII characters are supported.
         //
+        OcPlayAudioBeep (
+          Context,
+          OC_VOICE_OVER_SIGNALS_ERROR,
+          OC_VOICE_OVER_SIGNAL_ERROR_MS,
+          OC_VOICE_OVER_SILENCE_ERROR_MS
+          );
         continue;
       }
 
       if (PwIndex == ARRAY_SIZE (Password)) {
+        OcPlayAudioBeep (
+          Context,
+          OC_VOICE_OVER_SIGNALS_ERROR,
+          OC_VOICE_OVER_SIGNAL_ERROR_MS,
+          OC_VOICE_OVER_SILENCE_ERROR_MS
+          );
         continue;
       }
 
       gST->ConOut->OutputString (gST->ConOut, L"*");
-
       Password[PwIndex] = (UINT8)Key.UnicodeChar;
+      OcPlayAudioFile (Context, AppleVoiceOverAudioFileBeep, TRUE);
       ++PwIndex;
     }
 
@@ -171,12 +384,18 @@ OcShowSimplePasswordRequest (
     if (Result) {
       gST->ConOut->ClearScreen (gST->ConOut);
       Privilege->CurrentLevel = Level;
+      OcPlayAudioFile (Context, OcVoiceOverAudioFilePasswordAccepted, TRUE);
       return EFI_SUCCESS;
+    } else {
+      OcPlayAudioFile (Context, OcVoiceOverAudioFilePasswordIncorrect, TRUE);
     }
   }
 
   gST->ConOut->ClearScreen (gST->ConOut);
-  DEBUG ((DEBUG_WARN, "Password retry limit exceeded.\r\n"));
+  gST->ConOut->OutputString (gST->ConOut, OC_MENU_PASSWORD_RETRY_LIMIT);
+  gST->ConOut->OutputString (gST->ConOut, L"\r\n");
+  OcPlayAudioFile (Context, OcVoiceOverAudioFilePasswordRetryLimit, TRUE);
+  DEBUG ((DEBUG_WARN, "OCB: User failed to verify password for 3 times running\n"));
 
   gBS->Stall (5000000);
   gRT->ResetSystem (EfiResetWarm, EFI_SUCCESS, 0, NULL);
@@ -199,7 +418,9 @@ OcRunSimpleBootPicker (
   INTN                               CurrentDefault;
   BOOLEAN                            ForbidApple;
   BOOLEAN                            Hidden;
+  BOOLEAN                            SaidWelcome;
 
+  SaidWelcome  = FALSE;
   DefaultEntry = HotkeyNumber;
   Hidden = Context->HideAuxiliary;
   
@@ -220,9 +441,10 @@ OcRunSimpleBootPicker (
   //
   if (Context->PickerCommand != OcPickerDefault) {
     Status = Context->RequestPrivilege (
-                        Context->PrivilegeContext,
-                        OcPrivilegeAuthorized
-                        );
+      Context,
+      Context->PrivilegeContext,
+      OcPrivilegeAuthorized
+      );
     if (EFI_ERROR (Status)) {
       if (Status != EFI_ABORTED) {
         ASSERT (FALSE);
@@ -282,6 +504,10 @@ OcRunSimpleBootPicker (
     DefaultEntry = (DefaultEntry >= 0 && DefaultEntry < EntryCount) ?  DefaultEntry : CurrentDefault;
 
     if (Context->PickerCommand == OcPickerShowPicker && HotkeyNumber < 0) {
+      if (!SaidWelcome) {
+        OcPlayAudioFile (Context, OcVoiceOverAudioFileWelcome, FALSE);
+        SaidWelcome = TRUE;
+      }
       if (!ForbidApple && Context->PickerMode == OcPickerModeApple) {
         Status = OcRunAppleBootPicker ();
         DEBUG ((DEBUG_INFO, "OCB: Apple BootPicker failed on error - %r, fallback to builtin\n", Status));
@@ -296,6 +522,7 @@ OcRunSimpleBootPicker (
         &Chosen
         );
     } else if (Context->PickerCommand == OcPickerResetNvram) {
+      OcPlayAudioFile (Context, OcVoiceOverAudioFileResetNVRAM, FALSE);
       return InternalSystemActionResetNvram ();
     } else {
       Chosen = &Entries[DefaultEntry];
@@ -339,11 +566,14 @@ OcRunSimpleBootPicker (
       // Do not wait on successful return code.
       //
       if (EFI_ERROR (Status)) {
+        OcPlayAudioFile (Context, OcVoiceOverAudioFileExecutionFailure, TRUE);
         gBS->Stall (SECONDS_TO_MICROSECONDS (3));
         //
         // Show picker on first failure.
         //
         Context->PickerCommand = OcPickerShowPicker;
+      } else {
+        OcPlayAudioFile (Context, OcVoiceOverAudioFileExecutionSuccessful, FALSE);
       }
       //
       // Ensure that we flush all pressed keys after the application.

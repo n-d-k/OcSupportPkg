@@ -2023,7 +2023,7 @@ OcShowSimpleBootMenu (
                           );
 
     while (TRUE) {
-      KeyIndex = OcWaitForAppleKeyIndex (Context, KeyMap, 1, Context->PollAppleHotKeys, &SetDefault);
+      KeyIndex = OcWaitForAppleKeyIndex (Context, KeyMap, 1000, Context->PollAppleHotKeys, &SetDefault);
       --TimeOutSeconds;
       if ((KeyIndex == OC_INPUT_TIMEOUT && TimeOutSeconds == 0) || KeyIndex == OC_INPUT_RETURN) {
         *ChosenBootEntry = &BootEntries[DefaultEntry];
