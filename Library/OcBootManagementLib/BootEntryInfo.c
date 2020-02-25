@@ -516,6 +516,7 @@ InternalFillValidBootEntries (
   EFI_FILE_PROTOCOL    *RecoveryRoot;
   EFI_HANDLE           RecoveryDeviceHandle;
   UINTN                Index;
+  CHAR16               *DevicePathText;
   BOOLEAN              IsDuplicated;
 
   while (TRUE) {
@@ -560,6 +561,14 @@ InternalFillValidBootEntries (
 
     IsDuplicated = FALSE;
     for (Index = 0; Index < MIN (Context->AbsoluteEntryCount, EntryIndex); ++Index) {
+      DevicePathText = ConvertDevicePathToText (DevicePath, FALSE, FALSE);
+      if (DevicePathText != NULL) {
+        if (StrStr(DevicePathText, L"\\com.apple.installer\\boot.efi") != NULL) {
+          FreePool (DevicePathText);
+          break;
+        }
+        FreePool (DevicePathText);
+      }
       if (CompareMem (Entries[Index].DevicePath, DevicePath, DevPathScanInfo->HdPrefixSize) == 0) {
         IsDuplicated = TRUE;
         break;

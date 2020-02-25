@@ -42,6 +42,7 @@
   PolicyManagement.c
   OcBootManagementLib.c
   VariableManagement.c
+  OcSimpleBootMenuInternal.h
   OcSimpleBootMenu.c
 
 [Packages]
