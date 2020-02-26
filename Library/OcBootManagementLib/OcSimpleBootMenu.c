@@ -34,6 +34,7 @@
 #include <Library/OcStorageLib.h>
 
 #include <OcSimpleBootMenuInternal.h>
+#include <BootManagementInternal.h>
 
 
 STATIC
@@ -1953,6 +1954,9 @@ OcShowSimpleBootMenu (
   BOOLEAN                            NewDefault;
   BOOLEAN                            TimeoutExpired;
   OC_STORAGE_CONTEXT                 *Storage;
+  BOOLEAN                            PlayedOnce;
+  BOOLEAN                            PlayChosen;
+  
   
   Selected         = 0;
   VisibleIndex     = 0;
@@ -1963,6 +1967,8 @@ OcShowSimpleBootMenu (
   mAllowSetDefault = Context->AllowSetDefault;
   Storage          = Context->CustomEntryContext;
   mDefaultEntry    = DefaultEntry;
+  PlayedOnce       = FALSE;
+  PlayChosen       = FALSE;
   
   if (Storage->FileSystem != NULL && mFileSystem == NULL) {
     mFileSystem = Storage->FileSystem;
@@ -2021,6 +2027,23 @@ OcShowSimpleBootMenu (
                           BootEntries[DefaultEntry].IsExternal,
                           BootEntries[DefaultEntry].IsFolder
                           );
+    
+    if (!PlayedOnce && Context->PickerAudioAssist) {
+      OcPlayAudioFile (Context, OcVoiceOverAudioFileChooseOS, FALSE);
+      for (Index = 0; Index < VisibleIndex; ++Index) {
+        OcPlayAudioEntry (Context, &BootEntries[VisibleList[Index]], 1 + (UINT32) (&BootEntries[VisibleList[Index]] - BootEntries));
+        if (DefaultEntry == VisibleList[Index] && TimeOutSeconds > 0) {
+          OcPlayAudioFile (Context, OcVoiceOverAudioFileDefault, FALSE);
+        }
+      }
+      OcPlayAudioBeep (
+        Context,
+        OC_VOICE_OVER_SIGNALS_NORMAL,
+        OC_VOICE_OVER_SIGNAL_NORMAL_MS,
+        OC_VOICE_OVER_SILENCE_NORMAL_MS
+        );
+      PlayedOnce = TRUE;
+    }
 
     while (TRUE) {
       KeyIndex = OcWaitForAppleKeyIndex (Context, KeyMap, 1000, Context->PollAppleHotKeys, &SetDefault);
@@ -2037,13 +2060,20 @@ OcShowSimpleBootMenu (
           && mDefaultEntry != DefaultEntry;
         
         if (SetDefault || NewDefault) {
+          if (SetDefault) {
+            OcPlayAudioFile (Context, OcVoiceOverAudioFileSelected, FALSE);
+            OcPlayAudioFile (Context, OcVoiceOverAudioFileDefault, FALSE);
+            OcPlayAudioEntry (Context, *ChosenBootEntry, 1 + (UINT32) (&BootEntries[DefaultEntry] - BootEntries));
+          }
           Status = OcSetDefaultBootEntry (Context, &BootEntries[DefaultEntry]);
           DEBUG ((DEBUG_INFO, "OCSBM: Setting default - %r\n", Status));
         }
         RestoreConsoleMode (Context);
+        OcPlayAudioFile (Context, OcVoiceOverAudioFileTimeout, FALSE);
         return EFI_SUCCESS;
       } else if (KeyIndex == OC_INPUT_ABORTED) {
         TimeOutSeconds = 0;
+        OcPlayAudioFile (Context, OcVoiceOverAudioFileReloading, FALSE);
         break;
       } else if (KeyIndex == OC_INPUT_FUNCTIONAL(10)) {
         TimeOutSeconds = 0;
@@ -2057,6 +2087,9 @@ OcShowSimpleBootMenu (
         TimeOutSeconds = 0;
         FreeImage (mMenuImage);
         mMenuImage = NULL;
+        if (ShowAll) {
+          OcPlayAudioFile (Context, OcVoiceOverAudioFileShowAuxiliary, FALSE);
+        }
         break;
       } else if (KeyIndex == OC_INPUT_UP) {
         SwitchIconSelection (VisibleIndex, Selected, FALSE);
@@ -2094,11 +2127,18 @@ OcShowSimpleBootMenu (
           && !Context->AllowSetDefault
           && mDefaultEntry != VisibleList[KeyIndex];
         if (SetDefault || NewDefault) {
+          if (SetDefault) {
+            OcPlayAudioFile (Context, OcVoiceOverAudioFileSelected, FALSE);
+            OcPlayAudioFile (Context, OcVoiceOverAudioFileDefault, FALSE);
+            OcPlayAudioEntry (Context, *ChosenBootEntry, 1 + (UINT32) (&BootEntries[VisibleList[KeyIndex]] - BootEntries));
+          }
           Status = OcSetDefaultBootEntry (Context, &BootEntries[VisibleList[KeyIndex]]);
           DEBUG ((DEBUG_INFO, "OCSBM: Setting default - %r\n", Status));
         }
         RestoreConsoleMode (Context);
         return EFI_SUCCESS;
+      } else if (KeyIndex == OC_INPUT_VOICE_OVER) {
+        OcToggleVoiceOver (Context, 0);
       } else if (KeyIndex != OC_INPUT_TIMEOUT) {
         TimeOutSeconds = 0;
       }

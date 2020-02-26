@@ -206,7 +206,6 @@ OcPlayAudioEntry (
   return EFI_SUCCESS;
 }
 
-STATIC
 VOID
 OcToggleVoiceOver (
   IN  OC_PICKER_CONTEXT  *Context,
@@ -555,6 +554,21 @@ OcRunSimpleBootPicker (
     }
 
     if (!EFI_ERROR (Status)) {
+      if (Context->PickerCommand == OcPickerShowPicker) {
+        //
+        // Voice chosen information.
+        //
+        OcPlayAudioFile (Context, OcVoiceOverAudioFileLoading, FALSE);
+        Status = OcPlayAudioEntry (Context, Chosen, 1 + (UINT32) (Chosen - Entries));
+        if (EFI_ERROR (Status)) {
+          OcPlayAudioBeep (
+            Context,
+            OC_VOICE_OVER_SIGNALS_PASSWORD_OK,
+            OC_VOICE_OVER_SIGNAL_NORMAL_MS,
+            OC_VOICE_OVER_SILENCE_NORMAL_MS
+            );
+        }
+      }
       Status = OcLoadBootEntry (
         AppleBootPolicy,
         Context,

@@ -935,4 +935,10 @@ OcPlayAudioEntry (
   IN     UINT32             Number
   );
 
+VOID
+OcToggleVoiceOver (
+  IN  OC_PICKER_CONTEXT  *Context,
+  IN  UINT32             File  OPTIONAL
+  );
+
 #endif // OC_BOOT_MANAGEMENT_LIB_H
