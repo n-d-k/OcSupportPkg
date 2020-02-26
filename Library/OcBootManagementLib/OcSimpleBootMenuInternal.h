@@ -113,6 +113,7 @@ mMenuFadeIntensity = 150;     // ranging from 0 to 255 0 = completely disappear,
 /*=========== Default colors settings ==============*/
 
 EFI_GRAPHICS_OUTPUT_BLT_PIXEL mTransparentPixel  = {0x00, 0x00, 0x00, 0x00};
+EFI_GRAPHICS_OUTPUT_BLT_PIXEL mBluePixel  = {0x7f, 0x0f, 0x0f, 0xff};
 EFI_GRAPHICS_OUTPUT_BLT_PIXEL mBlackPixel  = {0x00, 0x00, 0x00, 0xff};
 EFI_GRAPHICS_OUTPUT_BLT_PIXEL mLowWhitePixel  = {0xb8, 0xbd, 0xbf, 0xff};
 
