@@ -1968,7 +1968,7 @@ OcShowSimpleBootMenu (
   Storage          = Context->CustomEntryContext;
   mDefaultEntry    = DefaultEntry;
   PlayedOnce       = FALSE;
-  PlayChosen       = FALSE;
+  PlayChosen       = Context->PickerAudioAssist;
   
   if (Storage->FileSystem != NULL && mFileSystem == NULL) {
     mFileSystem = Storage->FileSystem;
@@ -2063,17 +2063,16 @@ OcShowSimpleBootMenu (
           if (SetDefault) {
             OcPlayAudioFile (Context, OcVoiceOverAudioFileSelected, FALSE);
             OcPlayAudioFile (Context, OcVoiceOverAudioFileDefault, FALSE);
-            OcPlayAudioEntry (Context, *ChosenBootEntry, 1 + (UINT32) (&BootEntries[DefaultEntry] - BootEntries));
+            OcPlayAudioEntry (Context, &BootEntries[DefaultEntry], 1 + (UINT32) (&BootEntries[DefaultEntry] - BootEntries));
           }
           Status = OcSetDefaultBootEntry (Context, &BootEntries[DefaultEntry]);
           DEBUG ((DEBUG_INFO, "OCSBM: Setting default - %r\n", Status));
         }
         RestoreConsoleMode (Context);
-        OcPlayAudioFile (Context, OcVoiceOverAudioFileTimeout, FALSE);
         return EFI_SUCCESS;
       } else if (KeyIndex == OC_INPUT_ABORTED) {
         TimeOutSeconds = 0;
-        OcPlayAudioFile (Context, OcVoiceOverAudioFileReloading, FALSE);
+        OcPlayAudioFile (Context, OcVoiceOverAudioFileAbortTimeout, FALSE);
         break;
       } else if (KeyIndex == OC_INPUT_FUNCTIONAL(10)) {
         TimeOutSeconds = 0;
@@ -2103,6 +2102,10 @@ OcShowSimpleBootMenu (
                               BootEntries[DefaultEntry].IsFolder
                               );
         TimeOutSeconds = 0;
+        if (PlayChosen) {
+          OcPlayAudioFile (Context, OcVoiceOverAudioFileSelected, FALSE);
+          OcPlayAudioEntry (Context, &BootEntries[DefaultEntry], 1 + (UINT32) (&BootEntries[DefaultEntry] - BootEntries));
+        }
       } else if (KeyIndex == OC_INPUT_DOWN) {
         SwitchIconSelection (VisibleIndex, Selected, FALSE);
         DefaultEntry = Selected < (VisibleIndex - 1) ? VisibleList[Selected + 1] : 0;
@@ -2115,6 +2118,10 @@ OcShowSimpleBootMenu (
                               BootEntries[DefaultEntry].IsFolder
                               );
         TimeOutSeconds = 0;
+        if (PlayChosen) {
+          OcPlayAudioFile (Context, OcVoiceOverAudioFileSelected, FALSE);
+          OcPlayAudioEntry (Context, &BootEntries[DefaultEntry], 1 + (UINT32) (&BootEntries[DefaultEntry] - BootEntries));
+        }
       } else if (KeyIndex != OC_INPUT_INVALID && (UINTN)KeyIndex < VisibleIndex) {
         ASSERT (KeyIndex >= 0);
         *ChosenBootEntry = &BootEntries[VisibleList[KeyIndex]];
@@ -2130,7 +2137,7 @@ OcShowSimpleBootMenu (
           if (SetDefault) {
             OcPlayAudioFile (Context, OcVoiceOverAudioFileSelected, FALSE);
             OcPlayAudioFile (Context, OcVoiceOverAudioFileDefault, FALSE);
-            OcPlayAudioEntry (Context, *ChosenBootEntry, 1 + (UINT32) (&BootEntries[VisibleList[KeyIndex]] - BootEntries));
+            OcPlayAudioEntry (Context, &BootEntries[VisibleList[KeyIndex]], 1 + (UINT32) (&BootEntries[VisibleList[KeyIndex]] - BootEntries));
           }
           Status = OcSetDefaultBootEntry (Context, &BootEntries[VisibleList[KeyIndex]]);
           DEBUG ((DEBUG_INFO, "OCSBM: Setting default - %r\n", Status));
@@ -2139,6 +2146,7 @@ OcShowSimpleBootMenu (
         return EFI_SUCCESS;
       } else if (KeyIndex == OC_INPUT_VOICE_OVER) {
         OcToggleVoiceOver (Context, 0);
+        PlayChosen = Context->PickerAudioAssist;
       } else if (KeyIndex != OC_INPUT_TIMEOUT) {
         TimeOutSeconds = 0;
       }
