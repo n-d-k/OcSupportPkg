@@ -1938,6 +1938,7 @@ RestoreConsoleMode (
 }
 
 EFI_STATUS
+EFIAPI
 OcShowSimpleBootMenu (
   IN OC_PICKER_CONTEXT            *Context,
   IN OC_BOOT_ENTRY                *BootEntries,
