@@ -114,7 +114,8 @@ STATIC
 NDK_UI_IMAGE *
 CreateImage (
   IN UINT16       Width,
-  IN UINT16       Height
+  IN UINT16       Height,
+  IN BOOLEAN      IsAlpha
   )
 {
   NDK_UI_IMAGE    *NewImage;
@@ -138,6 +139,7 @@ CreateImage (
   
   NewImage->Width = Width;
   NewImage->Height = Height;
+  NewImage->IsAlpha = IsAlpha;
   
   return NewImage;
 }
@@ -440,9 +442,7 @@ ComposeImage (
   IN OUT NDK_UI_IMAGE        *Image,
   IN     NDK_UI_IMAGE        *TopImage,
   IN     INTN                Xpos,
-  IN     INTN                Ypos,
-  IN     BOOLEAN             ImageIsAlpha,
-  IN     BOOLEAN             TopImageIsAlpha
+  IN     INTN                Ypos
   )
 {
   INTN                       CompWidth;
@@ -457,11 +457,11 @@ ComposeImage (
   RestrictImageArea (Image, Xpos, Ypos, &CompWidth, &CompHeight);
 
   if (CompWidth > 0) {
-    if (ImageIsAlpha && mBackgroundImage == NULL) {
-      ImageIsAlpha = FALSE;
+    if (Image->IsAlpha && mBackgroundImage == NULL) {
+      Image->IsAlpha = FALSE;
     }
-    if (TopImageIsAlpha) {
-      if (ImageIsAlpha) {
+    if (TopImage->IsAlpha) {
+      if (Image->IsAlpha) {
         RawCompose (Image->Bitmap + Ypos * Image->Width + Xpos,
                     TopImage->Bitmap,
                     CompWidth,
@@ -494,8 +494,7 @@ STATIC
 VOID
 FillImage (
   IN OUT NDK_UI_IMAGE                  *Image,
-  IN     EFI_GRAPHICS_OUTPUT_BLT_PIXEL *Color,
-  IN     BOOLEAN                       IsAlpha
+  IN     EFI_GRAPHICS_OUTPUT_BLT_PIXEL *Color
   )
 {
   EFI_GRAPHICS_OUTPUT_BLT_PIXEL        FillColor;
@@ -507,7 +506,7 @@ FillImage (
   }
   
 
-  if (!IsAlpha) {
+  if (!Image->IsAlpha) {
     FillColor.Reserved = 0;
   }
 
@@ -530,12 +529,12 @@ CreateFilledImage (
 {
   NDK_UI_IMAGE      *NewImage;
   
-  NewImage = CreateImage (Width, Height);
+  NewImage = CreateImage (Width, Height, IsAlpha);
   if (NewImage == NULL) {
     return NULL;
   }
   
-  FillImage (NewImage, Color, IsAlpha);
+  FillImage (NewImage, Color);
   
   return NewImage;
 }
@@ -551,7 +550,7 @@ CopyImage (
     return NULL;
   }
 
-  NewImage = CreateImage (Image->Width, Image->Height);
+  NewImage = CreateImage (Image->Width, Image->Height, Image->IsAlpha);
   if (NewImage == NULL) {
     return NULL;
   }
@@ -593,7 +592,7 @@ CopyScaledImage (
   if (Ratio == 16) {
     NewImage = CopyImage (OldImage);
   } else {
-    NewImage = CreateImage (NewW, NewH);
+    NewImage = CreateImage (NewW, NewH, OldImage->IsAlpha);
     if (NewImage == NULL) {
       return NULL;
     }
@@ -728,13 +727,13 @@ CreateMenuImage (
   }
   
   if (mMenuImage != NULL) {
-    ComposeImage (NewImage, mMenuImage, 0, 0, TRUE, TRUE);
+    ComposeImage (NewImage, mMenuImage, 0, 0);
     if (mMenuImage != NULL) {
       FreeImage (mMenuImage);
     }
   }
   
-  ComposeImage (NewImage, Icon, Xpos + mIconPaddingSize, Ypos + mIconPaddingSize, TRUE, TRUE);
+  ComposeImage (NewImage, Icon, Xpos + mIconPaddingSize, Ypos + mIconPaddingSize);
   if (Icon != NULL) {
     FreeImage (Icon);
   }
@@ -768,7 +767,7 @@ BltImageAlpha (
   }
 
   CompImage = CreateFilledImage (Width, Height, (mBackgroundImage != NULL), BackgroundPixel);
-  ComposeImage (CompImage, NewImage, 0, 0, (mBackgroundImage != NULL), TRUE);
+  ComposeImage (CompImage, NewImage, 0, 0);
   if (NewImage != NULL) {
     FreeImage (NewImage);
   }
@@ -779,7 +778,7 @@ BltImageAlpha (
   }
   
   // Background Image was used.
-  NewImage = CreateImage (Width, Height);
+  NewImage = CreateImage (Width, Height, FALSE);
   if (NewImage == NULL) {
     return;
   }
@@ -791,7 +790,7 @@ BltImageAlpha (
            mBackgroundImage->Width
            );
   // Compose
-  ComposeImage (NewImage, CompImage, 0, 0, FALSE, (mBackgroundImage != NULL));
+  ComposeImage (NewImage, CompImage, 0, 0);
   FreeImage (CompImage);
   // Draw to screen
   DrawImageArea (NewImage, 0, 0, 0, 0, Xpos, Ypos);
@@ -827,7 +826,7 @@ BltMenuImage (
     return;
   }
   
-  NewImage = CreateImage (Image->Width, Image->Height);
+  NewImage = CreateImage (Image->Width, Image->Height, FALSE);
   if (NewImage == NULL) {
     return;
   }
@@ -891,7 +890,7 @@ DecodePNG (
     return NULL;
   }
     
-  NewImage = CreateImage ((INTN) Width, (INTN) Height);
+  NewImage = CreateImage ((INTN) Width, (INTN) Height, IsAlpha);
   if (NewImage == NULL) {
     if (Buffer != NULL) {
       FreePool (Buffer);
@@ -1018,7 +1017,7 @@ TakeScreenShot (
                  (UINT32) Date.Second
   );
   
-  Image = CreateImage (mScreenWidth, mScreenHeight);
+  Image = CreateImage (mScreenWidth, mScreenHeight, FALSE);
   if (Image == NULL) {
     DEBUG ((DEBUG_INFO, "Failed to take screen shot!\n"));
     return;
@@ -1080,6 +1079,7 @@ CreateIcon (
   NDK_UI_IMAGE           *Icon;
   NDK_UI_IMAGE           *ScaledImage;
   NDK_UI_IMAGE           *TmpImage;
+  BOOLEAN                IsAlpha;
   
   Icon = NULL;
   ScaledImage = NULL;
@@ -1146,7 +1146,10 @@ CreateIcon (
   
   if (Icon != NULL) {
     TmpImage = CreateFilledImage (128, 128, TRUE, &mTransparentPixel);
-    ComposeImage (Icon, TmpImage, 0, 0, FALSE, TRUE);
+    IsAlpha = Icon->IsAlpha;
+    Icon->IsAlpha = FALSE;
+    ComposeImage (Icon, TmpImage, 0, 0);
+    Icon->IsAlpha = IsAlpha;
     FreeImage (TmpImage);
   }
   
@@ -1205,7 +1208,7 @@ SwitchIconSelection (
   }
   /* Done Calculating Xpos and Ypos of current selected icon on screen*/
   
-  Icon = CreateImage (mIconSpaceSize - (mIconPaddingSize * 2), mIconSpaceSize - (mIconPaddingSize * 2));
+  Icon = CreateImage (mIconSpaceSize - (mIconPaddingSize * 2), mIconSpaceSize - (mIconPaddingSize * 2), TRUE);
   if (Icon == NULL) {
     return;
   }
@@ -1228,7 +1231,7 @@ SwitchIconSelection (
              mBackgroundImage->Width
              );
   } else {
-    NewImage = CreateImage (mIconSpaceSize, mIconSpaceSize);
+    NewImage = CreateImage (mIconSpaceSize, mIconSpaceSize, FALSE);
     
     RawCopy (NewImage->Bitmap,
              mBackgroundImage->Bitmap + Ypos * mBackgroundImage->Width + Xpos,
@@ -1328,7 +1331,7 @@ ClearScreenArea (
     return;
   }
   
-  NewImage = CreateImage (Width, Height);
+  NewImage = CreateImage (Width, Height, FALSE);
   if (NewImage == NULL) {
     return;
   }
@@ -1340,7 +1343,7 @@ ClearScreenArea (
            mBackgroundImage->Width
            );
 
-  ComposeImage (NewImage, Image, 0, 0, FALSE, (mBackgroundImage != NULL));
+  ComposeImage (NewImage, Image, 0, 0);
   FreeImage (Image);
 
   DrawImageArea (NewImage, 0, 0, 0, 0, Xpos, Ypos);
@@ -1438,7 +1441,7 @@ LoadFontImage (
   ImageWidth = NewImage->Width;
   ImageHeight = NewImage->Height;
   PixelPtr = NewImage->Bitmap;
-  NewFontImage = CreateImage (ImageWidth * Rows, ImageHeight / Rows); // need to be Alpha
+  NewFontImage = CreateImage (ImageWidth * Rows, ImageHeight / Rows, TRUE); // need to be Alpha
   
   if (NewFontImage == NULL) {
     if (NewImage != NULL) {
@@ -1676,7 +1679,7 @@ CreateTextImage (
     TextWidth = RenderText (String, Image, 0, 0, 0xFFFF);
   }
   
-  TmpImage = CreateImage (TextWidth, mFontHeight);
+  TmpImage = CreateImage (TextWidth, mFontHeight, TRUE);
   RawCopy (TmpImage->Bitmap,
            Image->Bitmap + 1 * Image->Width + 1,
            TmpImage->Width,
@@ -1724,7 +1727,7 @@ PrintTextGraphicXY (
   }
   
   if (Faded) {
-    NewImage = CreateImage (TextImage->Width, TextImage->Height);
+    NewImage = CreateImage (TextImage->Width, TextImage->Height, TRUE);
     RawCopyAlpha (NewImage->Bitmap,
                   TextImage->Bitmap,
                   NewImage->Width,
@@ -1842,7 +1845,7 @@ PrintTimeOutMessage (
     if (TextImage == NULL) {
       return !(Timeout > 0);
     }
-    NewImage = CreateImage (TextImage->Width, TextImage->Height);
+    NewImage = CreateImage (TextImage->Width, TextImage->Height, TRUE);
     if (NewImage == NULL) {
       FreeImage (TextImage);
       return !(Timeout > 0);
@@ -1901,7 +1904,7 @@ PrintTextDescription (
     FreeImage (TextImage);
     return;
   }
-  ComposeImage (NewImage, TextImage, (NewImage->Width - TextImage->Width) / 2, 0, TRUE, TRUE);
+  ComposeImage (NewImage, TextImage, (NewImage->Width - TextImage->Width) / 2, 0);
   if (TextImage != NULL) {
     FreeImage (TextImage);
   }

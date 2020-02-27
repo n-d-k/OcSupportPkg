@@ -31,6 +31,42 @@
 typedef struct OC_PICKER_CONTEXT_ OC_PICKER_CONTEXT;
 
 /**
+  Default strings for use in the interfaces.
+**/
+#define OC_MENU_BOOT_MENU            L"OpenCore Boot Menu"
+#define OC_MENU_RESET_NVRAM_ENTRY    L"Reset NVRAM"
+#define OC_MENU_UEFI_SHELL_ENTRY     L"UEFI Shell"
+#define OC_MENU_PASSWORD_REQUEST     L"Password: "
+#define OC_MENU_PASSWORD_RETRY_LIMIT L"Password retry limit exceeded."
+#define OC_MENU_CHOOSE_OS            L"Choose the Operating System: "
+#define OC_MENU_SHOW_AUXILIARY       L"Show Auxiliary"
+#define OC_MENU_RELOADING            L"Reloading"
+#define OC_MENU_TIMEOUT              L"Timeout"
+#define OC_MENU_OK                   L"OK"
+#define OC_MENU_DISK_IMAGE           L" (dmg)"
+#define OC_MENU_EXTERNAL             L" (external)"
+
+/**
+  Default timeout for IDLE timeout during menu picker navigation
+  before VoiceOver toggle.
+**/
+#define OC_VOICE_OVER_IDLE_TIMEOUT_MS     700  ///< Experimental, less is problematic.
+
+/**
+  Default VoiceOver BeepGen protocol values.
+**/
+#define OC_VOICE_OVER_SIGNAL_NORMAL_MS    200  ///< From boot.efi, constant.
+#define OC_VOICE_OVER_SILENCE_NORMAL_MS   150  ///< From boot.efi, constant.
+#define OC_VOICE_OVER_SIGNALS_NORMAL      1    ///< Username prompt or any input for boot.efi
+#define OC_VOICE_OVER_SIGNALS_PASSWORD    2    ///< Password prompt for boot.efi
+#define OC_VOICE_OVER_SIGNALS_PASSWORD_OK 3    ///< Password correct for boot.efi
+
+#define OC_VOICE_OVER_SIGNAL_ERROR_MS     1000
+#define OC_VOICE_OVER_SILENCE_ERROR_MS    150
+#define OC_VOICE_OVER_SIGNALS_ERROR       1    ///< Password verification error or boot failure.
+#define OC_VOICE_OVER_SIGNALS_HWERROR     3    ///< Hardware error
+
+/**
   Operating system boot type.
   WARNING: This is only for debug purposes.
 **/
@@ -353,6 +389,19 @@ EFI_STATUS
   );
 
 /**
+  Display entries onscreen.
+**/
+typedef
+EFI_STATUS
+(EFIAPI *OC_SHOW_MENU) (
+  IN  OC_PICKER_CONTEXT           *Context,
+  IN  OC_BOOT_ENTRY               *BootEntries,
+  IN  UINTN                       Count,
+  IN  UINTN                       DefaultEntry,
+  OUT OC_BOOT_ENTRY               **ChosenBootEntry
+  );
+
+/**
   Picker behaviour action.
 **/
 typedef enum {
@@ -409,6 +458,10 @@ struct OC_PICKER_CONTEXT_ {
   // Handle to exclude scanning from, optional.
   //
   EFI_HANDLE                 ExcludeHandle;
+  //
+  // Entry display routine.
+  //
+  OC_SHOW_MENU               ShowMenu;
   //
   // Privilege escalation requesting routine.
   //
@@ -603,6 +656,7 @@ OcShowSimplePasswordRequest (
   @retval EFI_ABORTED          When the user chose to by pressing Esc or 0.
 **/
 EFI_STATUS
+EFIAPI
 OcShowSimpleBootMenu (
   IN  OC_PICKER_CONTEXT           *Context,
   IN  OC_BOOT_ENTRY               *BootEntries,
@@ -705,7 +759,7 @@ OcWaitForAppleKeyIndex (
   @retval does not return unless a fatal error happened.
 **/
 EFI_STATUS
-OcRunSimpleBootPicker (
+OcRunBootPicker (
   IN  OC_PICKER_CONTEXT  *Context,
   IN  INTN               HotkeyNumber
   );
