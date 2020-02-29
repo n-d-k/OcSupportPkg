@@ -2038,6 +2038,10 @@ OcShowSimpleBootMenu (
                           BootEntries[DefaultEntry].IsFolder
                           );
     
+    if (ShowAll && PlayedOnce) {
+      OcPlayAudioFile (Context, OcVoiceOverAudioFileShowAuxiliary, FALSE);
+    }
+    
     if (!PlayedOnce && Context->PickerAudioAssist) {
       OcPlayAudioFile (Context, OcVoiceOverAudioFileChooseOS, FALSE);
       for (Index = 0; Index < VisibleIndex; ++Index) {
@@ -2094,9 +2098,6 @@ OcShowSimpleBootMenu (
           --DefaultEntry;
         }
         TimeOutSeconds = 0;
-        if (ShowAll) {
-          OcPlayAudioFile (Context, OcVoiceOverAudioFileShowAuxiliary, FALSE);
-        }
         break;
       } else if (KeyIndex == OC_INPUT_UP) {
         SwitchIconSelection (VisibleIndex, Selected, FALSE);
