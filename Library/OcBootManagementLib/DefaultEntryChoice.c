@@ -837,7 +837,7 @@ OcSetDefaultBootEntry (
     BootVariableGuid = &gEfiGlobalVariableGuid;
   }
 
-  BootOrder = InternalGetBootOrder(
+  BootOrder = InternalGetBootOrder (
     BootVariableGuid,
     &BootOrderCount
     );

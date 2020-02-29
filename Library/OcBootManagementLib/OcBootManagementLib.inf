@@ -33,6 +33,7 @@
 [Sources]
   AppleHibernate.c
   BootArguments.c
+  BootAudio.c
   BootEntryInfo.c
   BootEntryManagement.c
   BootManagementInternal.h
@@ -77,6 +78,7 @@
   gOcReadOnlyVariableGuid                       ## SOMETIMES_CONSUMES
   gOcWriteOnlyVariableGuid                      ## SOMETIMES_CONSUMES
   gAppleBootPickerFileGuid                      ## SOMETIMES_CONSUMES
+  gMicrosoftVariableGuid                        ## SOMETIMES_CONSUMES
 
 [Protocols]
   gAppleBootPolicyProtocolGuid       ## PRODUCES
